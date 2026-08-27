@@ -47,10 +47,12 @@
             "Composer\\Config::disableProcessTimeout",
             "@php artisan dev"
         ],
+        "architecture:negative": "sh scripts/verify-deptrac-negative.sh",
         "quality": [
             "@php vendor/bin/pint --test",
             "@php vendor/bin/phpstan analyse --no-progress",
             "@php vendor/bin/deptrac analyse --no-progress",
+            "@architecture:negative",
             "@php artisan test"
         ],
         "test": [

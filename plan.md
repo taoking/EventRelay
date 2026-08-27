@@ -17,3 +17,9 @@
 
 - 本地 PHP 为 8.4，项目依赖解析与 CI 将锁定 PHP 8.5；本地运行验证使用兼容版本。
 - GitHub 仓库、推送、PR、Docker 服务取决于当前登录、网络和本机 Docker 状态，需以实际命令证据为准。
+
+## PR #1 独立审查整改
+
+- [x] 在 GitHub 为 `main` 建立有效 ruleset：必须通过 Pull Request，并要求 `quality` check。
+- [x] 添加不进入生产源码的 Deptrac 违规 fixture 与可重复负向验证，并纳入统一质量 Gate。
+- [ ] 同步 PR #1 和验收记录至当前 HEAD 的 CI 证据，完成复验。

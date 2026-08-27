@@ -39,7 +39,7 @@ docker compose down
 composer quality
 ```
 
-该命令依次执行 Pint、PHPStan/Larastan、Deptrac 和 PHPUnit 测试。也可在容器内执行：
+该命令依次执行 Pint、PHPStan/Larastan、Deptrac、Deptrac 负向验证和 PHPUnit 测试。负向验证只读取 `tests/Architecture` 中的专用 fixture，断言 `Domain -> Framework` 违规会被 Deptrac 拒绝；它不属于生产源码。也可在容器内执行：
 
 ```sh
 docker compose exec app composer quality
@@ -61,4 +61,4 @@ curl --fail http://localhost:8000/up
 - [Agent 导航](AGENTS.md)
 - [中文规则文档](docs)
 
-GitHub Actions 对 Pull Request 和 `main` push 执行与本地相同的 `composer quality` Gate。Issue 与 PR 模板要求使用 `PASS`、`FAIL`、`BLOCKED`、`NOT RUN`，并记录 Runtime Evidence。
+GitHub Actions 对 Pull Request 和 `main` push 执行与本地相同的 `composer quality` Gate。`main` 受 GitHub ruleset 保护：必须经 Pull Request，且 `quality` 必须通过。Issue 与 PR 模板要求使用 `PASS`、`FAIL`、`BLOCKED`、`NOT RUN`，并记录 Runtime Evidence。

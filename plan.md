@@ -11,7 +11,7 @@
 - [x] 配置 Pint、PHPStan/Larastan、Deptrac、统一质量命令和测试。
 - [x] 配置 Docker Compose、GitHub Actions、Issue/PR 模板和开发文档。
 - [x] 执行机械与运行时验证，更新验收记录。
-- [ ] 自审、提交、推送并创建 Draft PR。
+- [x] 自审、提交、推送并创建 Draft PR。
 
 ## 已知风险
 

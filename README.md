@@ -1,6 +1,6 @@
 # EventRelay
 
-EventRelay 是一个计划使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。当前为 **Phase 0 — Agentic Engineering Harness**：只建立工程与治理基线，不实现 Endpoint、Event、Delivery 或 Webhook 业务能力。
+EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现仅包含 Endpoint 的 CRUD API，不包含 Event、Delivery 或 Webhook 投递能力。
 
 ## 技术基线
 
@@ -53,6 +53,17 @@ docker compose exec app php artisan migrate --force
 docker compose exec app php artisan tinker --execute="dump(DB::select('select 1 as ok')); dump(Redis::connection()->ping());"
 curl --fail http://localhost:8000/up
 ```
+
+## Endpoint API
+
+Endpoint 使用稳定的公开 UUID，内部数据库自增键不会出现在 API 响应中。支持的操作为：
+
+- `POST /api/endpoints`：创建；`name`、`url` 必填，`url` 仅允许 HTTP/HTTPS，`status` 默认为 `active`。
+- `GET /api/endpoints` 与 `GET /api/endpoints/{id}`：列表与详情。
+- `PATCH /api/endpoints/{id}`：局部更新 `name`、`url` 或 `status`（`active` / `disabled`）。
+- `DELETE /api/endpoints/{id}`：软删除，返回 `204`；之后详情返回 `404`，列表不再包含该记录。
+
+除 `DELETE` 的 `204` 无响应体外，其余成功读取/写入响应均使用 `{ "data": ... }` JSON 结构；请求校验失败返回 `422`。
 
 ## 工程治理
 

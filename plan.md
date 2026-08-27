@@ -23,3 +23,11 @@
 - [x] 在 GitHub 为 `main` 建立有效 ruleset：必须通过 Pull Request，并要求 `quality` check。
 - [x] 添加不进入生产源码的 Deptrac 违规 fixture 与可重复负向验证，并纳入统一质量 Gate。
 - [x] 同步 PR #1 和验收记录至当前 HEAD 的 CI 证据，完成复验。
+
+## Issue #2：Endpoint CRUD
+
+- [x] 从 `origin/main@7d3940e` 创建 `feature/endpoint-crud`，阅读 Issue 与现有 Harness。
+- [x] 建立 Endpoint Domain、Application 用例/仓储契约与 Infrastructure 持久化实现。
+- [x] 建立 5 个 Endpoint CRUD API，并明确软删除行为。
+- [x] 添加 Unit / Feature 测试，维持架构 Gate 与负向验证。
+- [x] 执行机械 Gate、Docker CRUD Runtime Validation、自审、提交、推送与 Draft PR。

@@ -51,15 +51,7 @@ final readonly class Event
         return $this->type;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function payload(): array
-    {
-        return $this->payload->toArray();
-    }
-
-    public function payloadObject(): \stdClass
+    public function payload(): \stdClass
     {
         return $this->payload->toObject();
     }

@@ -17,7 +17,7 @@ final class EloquentEventRepository implements EventRepository
         $record->fill([
             'public_id' => $event->id()->toString(),
             'type' => $event->type(),
-            'payload' => $event->payloadObject(),
+            'payload' => $event->payload(),
             'created_at' => $event->createdAt(),
         ]);
         $record->save();

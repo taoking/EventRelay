@@ -39,3 +39,10 @@
 - [x] 实现 Event 创建、列表、详情 API 与请求校验。
 - [x] 添加 Unit / Feature 测试，并维持架构与负向验证。
 - [x] 执行质量 Gate、fresh Docker Runtime Validation、自审、提交、推送和 Draft PR。
+
+## PR #5：payload shape 高优先级整改
+
+- [x] 阅读独立审查，确认 `{}` 被转换为 `[]` 的 High finding。
+- [x] 在 Domain、Application DTO、Resource 与 API 输出中保留 JSON object shape。
+- [x] 添加空 object 与嵌套空 object 的 POST/detail/list 回归测试，并执行双环境质量与 HTTP 验证。
+- [ ] 提交、推送并同步 PR Evidence；等待独立复审。

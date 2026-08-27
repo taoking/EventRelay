@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
+use JsonException;
+use stdClass;
 use Tests\TestCase;
 
 final class EventReceiveApiTest extends TestCase
@@ -63,9 +66,42 @@ final class EventReceiveApiTest extends TestCase
                 'payload' => (object) [],
             ])
                 ->assertCreated()
-                ->assertJsonPath('data.type', $type)
-                ->assertJsonPath('data.payload', []);
+                ->assertJsonPath('data.type', $type);
         }
+    }
+
+    public function test_an_empty_object_payload_preserves_its_shape_in_create_detail_and_list_responses(): void
+    {
+        $created = $this->postJson('/api/events', [
+            'type' => 'order.paid',
+            'payload' => (object) [],
+        ])->assertCreated();
+        $id = (string) $created->json('data.id');
+
+        $this->assertEmptyJsonObject($this->responseBody($created)->data->payload);
+
+        $detail = $this->getJson("/api/events/{$id}")->assertOk();
+        $this->assertEmptyJsonObject($this->responseBody($detail)->data->payload);
+
+        $list = $this->getJson('/api/events')->assertOk();
+        $this->assertEmptyJsonObject($this->responseBody($list)->data[0]->payload);
+    }
+
+    public function test_a_nested_empty_object_payload_preserves_its_shape(): void
+    {
+        $created = $this->postJson('/api/events', [
+            'type' => 'order.paid',
+            'payload' => ['meta' => (object) []],
+        ])->assertCreated();
+        $id = (string) $created->json('data.id');
+
+        $this->assertEmptyJsonObject($this->responseBody($created)->data->payload->meta);
+
+        $detail = $this->getJson("/api/events/{$id}")->assertOk();
+        $this->assertEmptyJsonObject($this->responseBody($detail)->data->payload->meta);
+
+        $list = $this->getJson('/api/events')->assertOk();
+        $this->assertEmptyJsonObject($this->responseBody($list)->data[0]->payload->meta);
     }
 
     public function test_invalid_or_overlong_event_types_are_rejected(): void
@@ -129,5 +165,26 @@ final class EventReceiveApiTest extends TestCase
         $this->getJson('/api/events/c4c3a03f-7e0a-4057-9145-09b056fa4526')
             ->assertNotFound()
             ->assertJsonPath('message', 'Event not found.');
+    }
+
+    private function assertEmptyJsonObject(mixed $value): void
+    {
+        self::assertInstanceOf(stdClass::class, $value);
+        self::assertSame([], get_object_vars($value));
+    }
+
+    private function responseBody(TestResponse $response): stdClass
+    {
+        try {
+            $body = json_decode($response->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            self::fail('Response body must be valid JSON.');
+        }
+
+        if (! $body instanceof stdClass) {
+            self::fail('Response body must be a JSON object.');
+        }
+
+        return $body;
     }
 }

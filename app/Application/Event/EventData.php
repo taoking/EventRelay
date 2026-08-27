@@ -8,13 +8,10 @@ use App\Domain\Event\Event;
 
 final readonly class EventData
 {
-    /**
-     * @param  array<string, mixed>  $payload
-     */
     public function __construct(
         public string $id,
         public string $type,
-        public array $payload,
+        public \stdClass $payload,
         public string $createdAt,
     ) {}
 

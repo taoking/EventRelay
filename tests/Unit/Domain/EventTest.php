@@ -24,7 +24,7 @@ final class EventTest extends TestCase
             $event->id()->toString(),
         );
         self::assertSame('order.paid', $event->type());
-        self::assertSame(['order' => ['id' => 'order_123']], $event->payload());
+        self::assertSame('{"order":{"id":"order_123"}}', json_encode($event->payload(), JSON_THROW_ON_ERROR));
     }
 
     #[Test]
@@ -71,11 +71,11 @@ final class EventTest extends TestCase
         $reconstituted = Event::reconstitute(
             EventId::fromString($event->id()->toString()),
             $event->type(),
-            (object) $event->payload(),
+            $event->payload(),
             $event->createdAt(),
         );
 
         self::assertSame($event->id()->toString(), $reconstituted->id()->toString());
-        self::assertSame([], $reconstituted->payload());
+        self::assertSame('{}', json_encode($reconstituted->payload(), JSON_THROW_ON_ERROR));
     }
 }

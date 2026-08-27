@@ -34,25 +34,6 @@ final readonly class EventPayload
         return new self($normalised);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function toArray(): array
-    {
-        try {
-            $json = json_encode($this->value, JSON_THROW_ON_ERROR);
-            $payload = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            throw new InvalidArgumentException('Event payload must be JSON serializable.');
-        }
-
-        if (! is_array($payload)) {
-            throw new InvalidArgumentException('Event payload must be a JSON object.');
-        }
-
-        return $payload;
-    }
-
     public function toObject(): stdClass
     {
         try {

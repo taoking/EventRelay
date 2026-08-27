@@ -22,7 +22,7 @@ final class StoreEndpointRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:120'],
             'url' => ['required', 'string', 'max:2048', 'url:http,https'],
-            'status' => ['nullable', 'string', Rule::in(['active', 'disabled'])],
+            'status' => ['sometimes', 'required', 'string', Rule::in(['active', 'disabled'])],
         ];
     }
 }

@@ -47,6 +47,14 @@ final class EndpointCrudTest extends TestCase
             ->assertJsonValidationErrors(['url']);
 
         $this->postJson('/api/endpoints', [
+            'name' => 'Billing events',
+            'url' => 'https://example.test/webhooks/billing',
+            'status' => null,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+
+        $this->postJson('/api/endpoints', [
             'name' => str_repeat('a', 120),
             'url' => 'https://example.test/webhooks/billing',
         ])->assertCreated();

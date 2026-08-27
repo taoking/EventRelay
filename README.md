@@ -63,7 +63,7 @@ Endpoint 使用稳定的公开 UUID，内部数据库自增键不会出现在 AP
 - `PATCH /api/endpoints/{id}`：局部更新 `name`、`url` 或 `status`（`active` / `disabled`）。
 - `DELETE /api/endpoints/{id}`：软删除，返回 `204`；之后详情返回 `404`，列表不再包含该记录。
 
-所有成功读取/写入响应均使用 `{ "data": ... }` JSON 结构；请求校验失败返回 `422`。
+除 `DELETE` 的 `204` 无响应体外，其余成功读取/写入响应均使用 `{ "data": ... }` JSON 结构；请求校验失败返回 `422`。
 
 ## 工程治理
 

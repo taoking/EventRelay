@@ -30,4 +30,4 @@
 - [x] 建立 Endpoint Domain、Application 用例/仓储契约与 Infrastructure 持久化实现。
 - [x] 建立 5 个 Endpoint CRUD API，并明确软删除行为。
 - [x] 添加 Unit / Feature 测试，维持架构 Gate 与负向验证。
-- [ ] 执行机械 Gate、Docker CRUD Runtime Validation、自审、提交、推送与 Draft PR。
+- [x] 执行机械 Gate、Docker CRUD Runtime Validation、自审、提交、推送与 Draft PR。

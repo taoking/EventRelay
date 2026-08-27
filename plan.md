@@ -31,3 +31,11 @@
 - [x] 建立 5 个 Endpoint CRUD API，并明确软删除行为。
 - [x] 添加 Unit / Feature 测试，维持架构 Gate 与负向验证。
 - [x] 执行机械 Gate、Docker CRUD Runtime Validation、自审、提交、推送与 Draft PR。
+
+## Issue #4：Event 接收 API 与持久化
+
+- [x] 确认 `origin/main@9121a8a` post-merge CI PASS，阅读 Issue、规则与现有 Endpoint 实现。
+- [x] 实现不可变 Event Domain、Application Repository 边界与 Infrastructure JSON 持久化。
+- [x] 实现 Event 创建、列表、详情 API 与请求校验。
+- [x] 添加 Unit / Feature 测试，并维持架构与负向验证。
+- [x] 执行质量 Gate、fresh Docker Runtime Validation、自审、提交、推送和 Draft PR。

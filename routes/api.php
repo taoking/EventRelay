@@ -3,7 +3,12 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\EndpointController;
+use App\Http\Controllers\Api\EventController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/events', [EventController::class, 'index']);
+Route::post('/events', [EventController::class, 'store']);
+Route::get('/events/{id}', [EventController::class, 'show']);
 
 Route::get('/endpoints', [EndpointController::class, 'index']);
 Route::post('/endpoints', [EndpointController::class, 'store']);

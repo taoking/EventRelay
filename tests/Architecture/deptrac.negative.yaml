@@ -1,0 +1,18 @@
+deptrac:
+  paths:
+    - ./Fixtures/DeptracViolation/app
+
+  layers:
+    - name: Domain
+      collectors:
+        - type: directory
+          value: Fixtures/DeptracViolation/app/Domain/.*
+
+    - name: Framework
+      collectors:
+        - type: classLike
+          value: '^(Illuminate|Laravel|Symfony)\\.*'
+
+  ruleset:
+    Domain: []
+    Framework: []

@@ -22,4 +22,4 @@
 
 - [x] 在 GitHub 为 `main` 建立有效 ruleset：必须通过 Pull Request，并要求 `quality` check。
 - [x] 添加不进入生产源码的 Deptrac 违规 fixture 与可重复负向验证，并纳入统一质量 Gate。
-- [ ] 同步 PR #1 和验收记录至当前 HEAD 的 CI 证据，完成复验。
+- [x] 同步 PR #1 和验收记录至当前 HEAD 的 CI 证据，完成复验。

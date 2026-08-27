@@ -17,7 +17,7 @@
 | PHPStan/Larastan | PASS | PHPStan level 8；宿主与 PHP 8.5 容器均为 `No errors` |
 | Deptrac | PASS | 生产规则在宿主与容器均为 0 violations；负向 fixture 被报告为预期的 1 violation |
 | Tests | PASS | 宿主与 PHP 8.5 容器均为 2 passed / 2 assertions |
-| GitHub Actions | NOT RUN | 等待当前变更推送后的 PR #1 `quality` check |
+| GitHub Actions | PASS | [PR #1 当前 HEAD 的 `quality` check](https://github.com/taoking/EventRelay/pull/1/checks) 为实时证据；该 check 同时是 `main` ruleset 的必需 Gate |
 
 ## Runtime Gate
 
@@ -33,7 +33,7 @@
 |---|---|---|
 | High：`main` 允许绕过 Mechanical Gate | PASS | active [ruleset #21665762](https://github.com/taoking/EventRelay/rules/21665762) 应用于默认分支；要求 Pull Request 与严格 `quality` check；无 bypass actor，当前用户 `current_user_can_bypass=never` |
 | High：Deptrac 缺少可证明的负向验证 | PASS | `composer architecture:negative` 在测试 fixture 中构造 `Domain -> Framework`；Deptrac 报告 1 violation，验证脚本返回 0；fixture 不在 `app/` |
-| Medium：PR / 验收 CI 证据漂移 | NOT RUN | 等待当前 HEAD 的 `quality` check 后同步 PR #1 与本记录 |
+| Medium：PR / 验收 CI 证据漂移 | PASS | PR #1 与本记录均指向当前 HEAD 的实时 `quality` check；不再固化会过期的 run ID |
 
 ## Scope Check
 
@@ -44,4 +44,4 @@
 
 ## Final Status
 
-`INCOMPLETE`（等待当前 HEAD CI 与 PR 证据同步）
+`DONE`

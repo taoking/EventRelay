@@ -1,0 +1,44 @@
+deptrac:
+  paths:
+    - ./app
+  exclude_files:
+    - '#.*Tests.*#'
+
+  layers:
+    - name: Http
+      collectors:
+        - type: directory
+          value: app/Http/.*
+
+    - name: Application
+      collectors:
+        - type: directory
+          value: app/Application/.*
+
+    - name: Domain
+      collectors:
+        - type: directory
+          value: app/Domain/.*
+
+    - name: Infrastructure
+      collectors:
+        - type: directory
+          value: app/Infrastructure/.*
+
+    - name: Framework
+      collectors:
+        - type: classLike
+          value: '^(Illuminate|Laravel|Symfony)\\.*'
+
+  ruleset:
+    Http:
+      - Application
+      - Framework
+    Application:
+      - Domain
+    Domain: []
+    Infrastructure:
+      - Domain
+      - Application
+      - Framework
+    Framework: []

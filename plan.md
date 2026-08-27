@@ -1,0 +1,19 @@
+# Phase 0 执行计划
+
+## 目标
+
+在 `feature/phase-0-harness` 分支完成 EventRelay 的 Laravel 13 工程基线与 Agentic Engineering Harness；不实现任何产品业务能力。
+
+## 执行项
+
+- [x] 初始化本地 Git 仓库并创建 Phase 0 分支。
+- [x] 初始化 Laravel 13，锁定 Composer 平台 PHP 8.5，并配置 MySQL、Redis 与队列基线。
+- [x] 配置 Pint、PHPStan/Larastan、Deptrac、统一质量命令和测试。
+- [x] 配置 Docker Compose、GitHub Actions、Issue/PR 模板和开发文档。
+- [x] 执行机械与运行时验证，更新验收记录。
+- [ ] 自审、提交、推送并创建 Draft PR。
+
+## 已知风险
+
+- 本地 PHP 为 8.4，项目依赖解析与 CI 将锁定 PHP 8.5；本地运行验证使用兼容版本。
+- GitHub 仓库、推送、PR、Docker 服务取决于当前登录、网络和本机 Docker 状态，需以实际命令证据为准。

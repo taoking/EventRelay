@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Endpoint;
+namespace App\Domain\Event;
 
 use App\Domain\Shared\UuidV4;
 
-final readonly class EndpointId
+final readonly class EventId
 {
     private function __construct(
         private UuidV4 $value,

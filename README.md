@@ -1,6 +1,6 @@
 # EventRelay
 
-EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现仅包含 Endpoint 的 CRUD API，不包含 Event、Delivery 或 Webhook 投递能力。
+EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD 与 Event 接收 API，不包含 Subscription、Delivery 或 Webhook 投递能力。
 
 ## 技术基线
 
@@ -64,6 +64,15 @@ Endpoint 使用稳定的公开 UUID，内部数据库自增键不会出现在 AP
 - `DELETE /api/endpoints/{id}`：软删除，返回 `204`；之后详情返回 `404`，列表不再包含该记录。
 
 除 `DELETE` 的 `204` 无响应体外，其余成功读取/写入响应均使用 `{ "data": ... }` JSON 结构；请求校验失败返回 `422`。
+
+## Event API
+
+Event 是创建后不可变的业务事实，使用稳定公开 UUID，内部数据库自增键不会出现在 API 响应中。支持的操作为：
+
+- `POST /api/events`：接收并持久化 Event；`type` 必填，使用小写字母、数字、`.`、`_`、`-`，且长度最多 120 字符。
+- `GET /api/events` 与 `GET /api/events/{id}`：按接收顺序稳定列出与查询详情。
+
+`payload` 必填且必须为 JSON object（允许 `{}`），嵌套 object 和 array 会完整保存并返回。Event 不提供修改或删除 API；不进行订阅匹配、排队或 Webhook 投递。
 
 ## 工程治理
 

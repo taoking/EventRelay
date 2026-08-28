@@ -53,4 +53,5 @@
 - [x] 提取共享的纯领域 `EventType`，使 Event 与订阅使用同一业务不变量。
 - [x] 实现 Endpoint 订阅的领域集合、应用用例/仓储契约、MySQL 持久化与 GET/PUT API。
 - [x] 添加 Unit / Feature / Architecture 测试并执行本地、Docker PHP 8.5 与真实 HTTP Runtime Gate。
-- [ ] 审核差异，提交、推送并创建关联 #6 的 Draft PR，记录真实证据；等待独立审查。
+- [x] 审核差异、提交并推送 `83e3993`，创建关联 #6 的 Draft PR #7；CI run `33133000300` 为 PASS。
+- [ ] 等待 Independent Review；在其完成前最终状态保持 `INCOMPLETE`。

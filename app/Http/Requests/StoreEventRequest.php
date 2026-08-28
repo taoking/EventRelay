@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Application\Event\EventTypeValidator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 use JsonException;
@@ -23,7 +24,7 @@ final class StoreEventRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => ['required', 'string', 'max:120', 'regex:/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/'],
+            'type' => ['required', 'string'],
             'payload' => ['present'],
         ];
     }
@@ -33,15 +34,24 @@ final class StoreEventRequest extends FormRequest
      */
     public function after(): array
     {
-        return [function (Validator $validator): void {
-            if (! array_key_exists('payload', $this->all())) {
-                return;
-            }
+        return [
+            function (Validator $validator): void {
+                $type = $this->input('type');
 
-            if (! $this->rawPayload() instanceof stdClass) {
-                $validator->errors()->add('payload', 'The payload field must be a JSON object.');
-            }
-        }];
+                if (is_string($type) && ! EventTypeValidator::isValid($type)) {
+                    $validator->errors()->add('type', 'The type field has an invalid event type.');
+                }
+            },
+            function (Validator $validator): void {
+                if (! array_key_exists('payload', $this->all())) {
+                    return;
+                }
+
+                if (! $this->rawPayload() instanceof stdClass) {
+                    $validator->errors()->add('payload', 'The payload field must be a JSON object.');
+                }
+            },
+        ];
     }
 
     public function payload(): stdClass

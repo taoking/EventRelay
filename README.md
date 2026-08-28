@@ -1,6 +1,6 @@
 # EventRelay
 
-EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD 与 Event 接收 API，不包含 Subscription、Delivery 或 Webhook 投递能力。
+EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD、Event 接收 API 与 Endpoint Event Type Subscription，不包含 Delivery 或 Webhook 投递能力。
 
 ## 技术基线
 
@@ -73,6 +73,15 @@ Event 是创建后不可变的业务事实，使用稳定公开 UUID，内部数
 - `GET /api/events` 与 `GET /api/events/{id}`：按接收顺序稳定列出与查询详情。
 
 `payload` 必填且必须为 JSON object（允许 `{}`），嵌套 object 和 array 会完整保存并返回。Event 不提供修改或删除 API；不进行订阅匹配、排队或 Webhook 投递。
+
+## Endpoint Subscription API
+
+Endpoint 可订阅零个或多个 Event type，但订阅配置本身不会触发 Event/Endpoint 匹配或任何投递行为。支持的操作为：
+
+- `GET /api/endpoints/{id}/subscriptions`：返回该 Endpoint 的订阅；新 Endpoint 返回空 `types`。
+- `PUT /api/endpoints/{id}/subscriptions`：以 `{ "types": ["order.paid"] }` 完整替换订阅；`[]` 清空订阅。重复 type 会自动去重，响应按字典序稳定排序。
+
+Event type 使用与 Event 接收 API 相同的领域规则：小写字母、数字、`.`、`_`、`-`，长度最多 120 字符，并且首尾必须为字母或数字。Endpoint 不存在或已软删除时，两个订阅 API 都返回 `404`；无效请求返回 `422`。所有成功响应使用 `{ "data": { "endpoint_id": "...", "types": [...] } }`。
 
 ## 工程治理
 

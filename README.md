@@ -1,6 +1,6 @@
 # EventRelay
 
-EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD、Event 接收 API 与 Endpoint Event Type Subscription，不包含 Delivery 或 Webhook 投递能力。
+EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD、Event 接收 API、Endpoint Event Type Subscription 与 Delivery 历史记录，不包含自动 Delivery 创建或 Webhook 投递能力。
 
 ## 技术基线
 
@@ -82,6 +82,15 @@ Endpoint 可订阅零个或多个 Event type，但订阅配置本身不会触发
 - `PUT /api/endpoints/{id}/subscriptions`：以 `{ "types": ["order.paid"] }` 完整替换订阅；`[]` 清空订阅。重复 type 会自动去重，响应按字典序稳定排序。
 
 Event type 使用与 Event 接收 API 相同的领域规则：小写字母、数字、`.`、`_`、`-`，长度最多 120 字符，并且首尾必须为字母或数字。Endpoint 不存在或已软删除时，两个订阅 API 都返回 `404`；无效请求返回 `422`。所有成功响应使用 `{ "data": { "endpoint_id": "...", "types": [...] } }`。
+
+## Delivery API
+
+Delivery 是 `Event + Endpoint` 的唯一、不可变历史记录；新建记录的状态固定为 `pending`。Delivery 创建目前仅是内部 Application 能力，既不根据 Subscription 自动匹配，也不会入队或发送 Webhook。
+
+- `GET /api/deliveries`：按创建顺序稳定返回 Delivery 列表。
+- `GET /api/deliveries/{id}`：返回单条历史 Delivery。
+
+响应使用 `{ "data": ... }`，返回公开 UUID、`event_id`、`endpoint_id`、`status`、`created_at` 和 `updated_at`。不提供 `POST`、`PATCH` 或 `DELETE` Delivery API。重复的内部创建调用通过数据库 `(event_id, endpoint_id)` 唯一约束保证返回同一条 Delivery；Endpoint 软删除后，历史 Delivery 仍可读取，但不可再创建新的 Delivery。
 
 ## 工程治理
 

@@ -63,3 +63,20 @@
 - [x] 执行本地、Docker PHP 8.5 质量 Gate 与相关 HTTP Runtime 验证。
 - [ ] 推送、等待 CI 并更新 Draft PR 证据。
 - [ ] 等待 Independent Review 复核；最终状态保持 `INCOMPLETE`。
+
+## Issue #8：Delivery Domain 与持久化
+
+- [x] 确认 `main@ab9ea7a3fd80a5ac2b2a5aa5d4f323d32d0dd629` 的 post-merge CI run `33256015412` 为 PASS，阅读 Issue、必读文档、开发记录和现有实现。
+- [x] 实现 Delivery Domain、Application 用例/仓储契约、并发安全的幂等持久化和只读 API。
+- [x] 添加 Domain、Feature/Integration 与 Out-of-Scope 回归测试，并完成双环境质量与 Docker Runtime Gate。
+- [x] 审核差异、提交推送 `17d9c6c` 并创建关联 #8 的 Draft PR #9；CI run `33257033332` 为 PASS。
+- [ ] 等待 Independent Review；在其完成前最终状态保持 `INCOMPLETE`。
+
+## PR #9：Delivery 并发幂等 High 整改
+
+- [x] 阅读最新 Independent Review、Issue #8、必读文档、开发记录与 Delivery 实现/测试，确认在 `feature/delivery-domain@f41eb5952d509b277b068d7ac2958c620f008515` 上整改。
+- [x] 将复合唯一键冲突后的恢复查询改为 MySQL current/locking read，并仅识别当前 Delivery 复合唯一约束。
+- [x] 添加两个独立 MySQL 连接、受控 REPEATABLE READ 快照时序的并发回归测试。
+- [x] 更新中文开发记录，审核并提交修复。
+- [x] 执行本地与 Docker PHP 8.5 质量 Gate，以及 Docker MySQL 实际并发 Runtime Validation。
+- [ ] 推送、等待新 CI，并同步 Draft PR #9 的真实证据；Independent Review 复验前状态保持 `INCOMPLETE`。

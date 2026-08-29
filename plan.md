@@ -99,7 +99,7 @@
 ## Issue #12：Laravel Queue / Redis Delivery 调度骨架
 
 - [x] 确认 `main@1d9e6f737cb7937c3cc53df4eb9d66979032bedf` 及 post-merge CI run `33264733096` 为 PASS，创建 `feature/delivery-redis-queue` 并完成规范、Issue 与现有实现勘查。
-- [ ] 建立 Application queue/worker/recovery contracts，并让 CreateEvent 在 MySQL commit 后调度 Delivery。
-- [ ] 实现 Redis `deliveries` Job、pending finder 与 Console recovery command，保持 Outbox、HTTP、Attempt 和状态机均不在范围内。
-- [ ] 增加 Unit、Feature、MySQL/Redis integration 与 Worker 回归，补录完整来源，执行质量门和 Docker Runtime。
-- [ ] 审核差异、提交推送、创建 Draft PR、等待 CI 并同步真实证据；Independent Review 前保持 `INCOMPLETE`。
+- [x] 建立 Application queue/worker/recovery contracts，并让 CreateEvent 在 MySQL commit 后调度 Delivery。
+- [x] 实现 Redis `deliveries` Job、pending finder 与 Console recovery command，保持 Outbox、HTTP、Attempt 和状态机均不在范围内。
+- [x] 增加 Unit、Feature、MySQL/Redis integration 与 Worker 回归，补录完整来源，执行质量门和 Docker Runtime。
+- [x] 审核差异、提交推送、创建 Draft PR #13、等待 GitHub Actions run `33272462771` PASS 并同步真实证据；Independent Review 前保持 `INCOMPLETE`。

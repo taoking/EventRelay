@@ -6,7 +6,9 @@ namespace Tests\Feature\Api;
 
 use App\Application\Event\CreateEvent;
 use App\Application\Subscription\SubscriptionMatcher;
+use App\Domain\Endpoint\EndpointId;
 use App\Domain\Event\EventType;
+use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +18,7 @@ final class EventDeliveryMatchingConcurrencyTest extends TestCase
 {
     use DatabaseMigrations;
 
-    public function test_a_matched_endpoint_cannot_be_disabled_before_its_delivery_plan_is_created(): void
+    public function test_create_event_keeps_a_matched_endpoint_locked_until_delivery_creation_commits(): void
     {
         if (DB::connection()->getDriverName() !== 'mysql') {
             $this->markTestSkipped('This regression test requires MySQL/InnoDB row locks.');
@@ -28,54 +30,75 @@ final class EventDeliveryMatchingConcurrencyTest extends TestCase
         ])->assertOk();
 
         $originalConnection = DB::getDefaultConnection();
-        $matcherConnection = 'event_matching_matcher';
+        $creatorConnection = 'event_matching_creator';
         $updaterConnection = 'event_matching_updater';
 
         config([
-            "database.connections.{$matcherConnection}" => config('database.connections.mysql'),
+            "database.connections.{$creatorConnection}" => config('database.connections.mysql'),
             "database.connections.{$updaterConnection}" => config('database.connections.mysql'),
         ]);
-        DB::purge($matcherConnection);
+        DB::purge($creatorConnection);
         DB::purge($updaterConnection);
-        DB::setDefaultConnection($matcherConnection);
-
-        $matcher = DB::connection($matcherConnection);
-        $matcher->beginTransaction();
 
         try {
-            $matched = app(SubscriptionMatcher::class)->matchingActiveEndpointIds(EventType::fromString('order.paid'));
-            self::assertSame([$endpointId], array_map(
-                static fn ($id): string => $id->toString(),
-                $matched,
-            ));
-
             $updater = DB::connection($updaterConnection);
             $updater->statement('SET SESSION innodb_lock_wait_timeout = 1');
 
-            try {
-                $updater->table('endpoints')
-                    ->where('public_id', $endpointId)
-                    ->update(['status' => 'disabled']);
-                self::fail('The matcher lock must prevent a concurrent disable.');
-            } catch (QueryException $exception) {
-                self::assertStringContainsString('1205', $exception->getMessage());
-            }
+            $realMatcher = app(SubscriptionMatcher::class);
+            $mutationBlocked = false;
 
+            $this->app->instance(
+                SubscriptionMatcher::class,
+                new class($realMatcher, function () use (&$mutationBlocked, $endpointId, $updater): void {
+                    try {
+                        $updater->table('endpoints')
+                            ->where('public_id', $endpointId)
+                            ->update(['status' => 'disabled']);
+                        self::fail('The matcher lock must prevent a concurrent disable before CreateEvent commits.');
+                    } catch (QueryException $exception) {
+                        self::assertStringContainsString('1205', $exception->getMessage());
+                        $mutationBlocked = true;
+                    }
+                }) implements SubscriptionMatcher
+                {
+
+                    public function __construct(
+                        private readonly SubscriptionMatcher $matcher,
+                        private readonly Closure $afterMatch,
+                    ) {}
+
+                    /**
+                     * @return list<EndpointId>
+                     */
+                    public function matchingActiveEndpointIds(EventType $eventType): array
+                    {
+                        $endpointIds = $this->matcher->matchingActiveEndpointIds($eventType);
+
+                        ($this->afterMatch)();
+
+                        return $endpointIds;
+                    }
+                },
+            );
+
+            DB::setDefaultConnection($creatorConnection);
             $event = app(CreateEvent::class)->handle('order.paid', (object) ['source' => 'matching-lock-test']);
-            $matcher->commit();
+            self::assertTrue($mutationBlocked);
         } finally {
-            if ($matcher->transactionLevel() > 0) {
-                $matcher->rollBack();
-            }
-
             DB::setDefaultConnection($originalConnection);
-            DB::purge($matcherConnection);
+            DB::purge($creatorConnection);
             DB::purge($updaterConnection);
         }
 
         self::assertSame(1, DB::connection($originalConnection)->table('deliveries')->count());
         self::assertSame(1, DB::connection($originalConnection)->table('events')
             ->where('public_id', $event->id)
+            ->count());
+        self::assertSame(1, DB::connection($originalConnection)->table('deliveries')
+            ->join('events', 'deliveries.event_id', '=', 'events.id')
+            ->join('endpoints', 'deliveries.endpoint_id', '=', 'endpoints.id')
+            ->where('events.public_id', $event->id)
+            ->where('endpoints.public_id', $endpointId)
             ->count());
 
         self::assertSame(1, DB::connection($updaterConnection)->table('endpoints')

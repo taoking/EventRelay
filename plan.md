@@ -71,3 +71,12 @@
 - [x] 添加 Domain、Feature/Integration 与 Out-of-Scope 回归测试，并完成双环境质量与 Docker Runtime Gate。
 - [x] 审核差异、提交推送 `17d9c6c` 并创建关联 #8 的 Draft PR #9；CI run `33257033332` 为 PASS。
 - [ ] 等待 Independent Review；在其完成前最终状态保持 `INCOMPLETE`。
+
+## PR #9：Delivery 并发幂等 High 整改
+
+- [x] 阅读最新 Independent Review、Issue #8、必读文档、开发记录与 Delivery 实现/测试，确认在 `feature/delivery-domain@f41eb5952d509b277b068d7ac2958c620f008515` 上整改。
+- [x] 将复合唯一键冲突后的恢复查询改为 MySQL current/locking read，并仅识别当前 Delivery 复合唯一约束。
+- [x] 添加两个独立 MySQL 连接、受控 REPEATABLE READ 快照时序的并发回归测试。
+- [x] 更新中文开发记录，审核并提交修复。
+- [x] 执行本地与 Docker PHP 8.5 质量 Gate，以及 Docker MySQL 实际并发 Runtime Validation。
+- [ ] 推送、等待新 CI，并同步 Draft PR #9 的真实证据；Independent Review 复验前状态保持 `INCOMPLETE`。

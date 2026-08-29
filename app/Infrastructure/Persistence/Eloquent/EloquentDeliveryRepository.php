@@ -38,21 +38,19 @@ final class EloquentDeliveryRepository implements DeliveryRepository
 
                 return $this->toDomain($record->refresh());
             } catch (QueryException $exception) {
-                if (! $this->isIntegrityConstraintViolation($exception)) {
+                if (! $this->isDeliveryPairUniqueViolation($exception)) {
                     throw $exception;
                 }
 
                 $existing = DeliveryRecord::query()
                     ->where('event_id', $eventId)
                     ->where('endpoint_id', $endpointId)
+                    ->lockForUpdate()
                     ->first();
 
                 if ($existing !== null) {
                     return $this->toDomain($existing);
                 }
-
-                $this->internalEventId($delivery->eventId());
-                $this->internalEndpointId($delivery->endpointId());
 
                 throw $exception;
             }
@@ -155,8 +153,11 @@ final class EloquentDeliveryRepository implements DeliveryRepository
         return $record->public_id;
     }
 
-    private function isIntegrityConstraintViolation(QueryException $exception): bool
+    private function isDeliveryPairUniqueViolation(QueryException $exception): bool
     {
-        return in_array((string) $exception->getCode(), ['23000', '23505'], true);
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'deliveries_event_id_endpoint_id_unique')
+            || str_contains($message, 'UNIQUE constraint failed: deliveries.event_id, deliveries.endpoint_id');
     }
 }

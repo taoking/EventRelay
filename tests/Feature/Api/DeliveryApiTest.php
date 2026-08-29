@@ -135,7 +135,7 @@ final class DeliveryApiTest extends TestCase
             ->assertJsonPath('message', 'Delivery not found.');
     }
 
-    public function test_creating_an_event_does_not_automatically_create_deliveries_for_subscriptions(): void
+    public function test_creating_an_event_automatically_creates_deliveries_for_matching_subscriptions(): void
     {
         $endpointId = $this->createEndpoint();
 
@@ -148,7 +148,7 @@ final class DeliveryApiTest extends TestCase
             'payload' => (object) ['order_id' => 'order_123'],
         ])->assertCreated();
 
-        $this->assertDatabaseCount('deliveries', 0);
+        $this->assertDatabaseCount('deliveries', 1);
     }
 
     private function createDelivery(string $eventId, string $endpointId): DeliveryData

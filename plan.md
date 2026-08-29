@@ -80,3 +80,11 @@
 - [x] 更新中文开发记录，审核并提交修复。
 - [x] 执行本地与 Docker PHP 8.5 质量 Gate，以及 Docker MySQL 实际并发 Runtime Validation。
 - [ ] 推送、等待新 CI，并同步 Draft PR #9 的真实证据；Independent Review 复验前状态保持 `INCOMPLETE`。
+
+## Issue #10：Event Subscription Match 与 Delivery 自动生成
+
+- [x] 确认 `main@25d1f420e39d3d0b11255a8be26c05929e812d8d` 的 post-merge CI run `33260165081` 为 PASS，阅读必读文档、Issue 与现有实现，并创建 `feature/event-delivery-matching`。
+- [x] 实现原子 Event → exact Subscription match → Delivery 流程与锁定一致性边界。
+- [x] 添加 Feature、事务原子性及 MySQL 两连接并发回归测试。
+- [x] 执行本机、Docker PHP 8.5 质量门和完整 Docker Runtime 场景。
+- [ ] 提交、推送、创建关联 #10 的 Draft PR 并同步真实 CI 证据；Independent Review 前保持 `INCOMPLETE`。

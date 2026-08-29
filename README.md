@@ -72,7 +72,7 @@ Event 是创建后不可变的业务事实，使用稳定公开 UUID，内部数
 - `POST /api/events`：接收并持久化 Event；`type` 必填，使用小写字母、数字、`.`、`_`、`-`，且长度最多 120 字符。
 - `GET /api/events` 与 `GET /api/events/{id}`：按接收顺序稳定列出与查询详情。
 
-`payload` 必填且必须为 JSON object（允许 `{}`），嵌套 object 和 array 会完整保存并返回。Event 不提供修改或删除 API；不进行订阅匹配、排队或 Webhook 投递。
+`payload` 必填且必须为 JSON object（允许 `{}`），嵌套 object 和 array 会完整保存并返回。Event 不提供修改或删除 API。创建 Event 时会按 exact Event type 为 active、未软删除且已订阅的 Endpoint 自动创建 pending Delivery；不进行排队或 Webhook 投递。
 
 ## Endpoint Subscription API
 
@@ -85,7 +85,7 @@ Event type 使用与 Event 接收 API 相同的领域规则：小写字母、数
 
 ## Delivery API
 
-Delivery 是 `Event + Endpoint` 的唯一、不可变历史记录；新建记录的状态固定为 `pending`。Delivery 创建目前仅是内部 Application 能力，既不根据 Subscription 自动匹配，也不会入队或发送 Webhook。
+Delivery 是 `Event + Endpoint` 的唯一、不可变历史记录；新建记录的状态固定为 `pending`。Delivery 创建仍仅是内部 Application 能力：Event 创建会根据符合条件的 Subscription 自动调用它；不提供公开创建 API，也不会入队或发送 Webhook。
 
 - `GET /api/deliveries`：按创建顺序稳定返回 Delivery 列表。
 - `GET /api/deliveries/{id}`：返回单条历史 Delivery。

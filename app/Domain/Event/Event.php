@@ -50,6 +50,11 @@ final readonly class Event
         return $this->type->toString();
     }
 
+    public function eventType(): EventType
+    {
+        return $this->type;
+    }
+
     public function payload(): \stdClass
     {
         return $this->payload->toObject();

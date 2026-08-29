@@ -69,4 +69,5 @@
 - [x] 确认 `main@ab9ea7a3fd80a5ac2b2a5aa5d4f323d32d0dd629` 的 post-merge CI run `33256015412` 为 PASS，阅读 Issue、必读文档、开发记录和现有实现。
 - [x] 实现 Delivery Domain、Application 用例/仓储契约、并发安全的幂等持久化和只读 API。
 - [x] 添加 Domain、Feature/Integration 与 Out-of-Scope 回归测试，并完成双环境质量与 Docker Runtime Gate。
-- [ ] 审核差异，提交推送并创建关联 #8 的 Draft PR，记录真实证据；等待 Independent Review。
+- [x] 审核差异、提交推送 `17d9c6c` 并创建关联 #8 的 Draft PR #9；CI run `33257033332` 为 PASS。
+- [ ] 等待 Independent Review；在其完成前最终状态保持 `INCOMPLETE`。

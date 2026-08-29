@@ -6,13 +6,12 @@ namespace App\Domain\Event;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use InvalidArgumentException;
 
 final readonly class Event
 {
     private function __construct(
         private EventId $id,
-        private string $type,
+        private EventType $type,
         private EventPayload $payload,
         private DateTimeImmutable $createdAt,
     ) {}
@@ -21,7 +20,7 @@ final readonly class Event
     {
         return new self(
             EventId::generate(),
-            self::normaliseType($type),
+            EventType::fromString($type),
             EventPayload::fromValue($payload),
             new DateTimeImmutable,
         );
@@ -35,7 +34,7 @@ final readonly class Event
     ): self {
         return new self(
             $id,
-            self::normaliseType($type),
+            EventType::fromString($type),
             EventPayload::fromValue($payload),
             DateTimeImmutable::createFromInterface($createdAt),
         );
@@ -48,7 +47,7 @@ final readonly class Event
 
     public function type(): string
     {
-        return $this->type;
+        return $this->type->toString();
     }
 
     public function payload(): \stdClass
@@ -59,18 +58,5 @@ final readonly class Event
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
-    }
-
-    private static function normaliseType(string $type): string
-    {
-        if (
-            $type === ''
-            || mb_strlen($type) > 120
-            || preg_match('/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/', $type) !== 1
-        ) {
-            throw new InvalidArgumentException('Event type has an invalid format.');
-        }
-
-        return $type;
     }
 }

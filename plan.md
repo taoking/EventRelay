@@ -46,3 +46,20 @@
 - [x] 在 Domain、Application DTO、Resource 与 API 输出中保留 JSON object shape。
 - [x] 添加空 object 与嵌套空 object 的 POST/detail/list 回归测试，并执行双环境质量与 HTTP 验证。
 - [ ] 提交、推送并同步 PR Evidence；等待独立复审。
+
+## Issue #6：Endpoint Event Type Subscriptions
+
+- [x] 确认 `main@d1c16d65` 的 post-merge CI run `33132430142` 为 PASS，并完整阅读 Issue、必读文档与现有 Endpoint/Event 实现。
+- [x] 提取共享的纯领域 `EventType`，使 Event 与订阅使用同一业务不变量。
+- [x] 实现 Endpoint 订阅的领域集合、应用用例/仓储契约、MySQL 持久化与 GET/PUT API。
+- [x] 添加 Unit / Feature / Architecture 测试并执行本地、Docker PHP 8.5 与真实 HTTP Runtime Gate。
+- [x] 审核差异、提交并推送 `83e3993`，创建关联 #6 的 Draft PR #7；CI run `33133000300` 为 PASS。
+- [ ] 等待 Independent Review；在其完成前最终状态保持 `INCOMPLETE`。
+
+## PR #7：TOCTOU / 软删除竞态 Medium 整改
+
+- [x] 阅读 Independent Review，确认只整改 persistence 二次查询在 soft delete 后泄漏 Infrastructure `ModelNotFoundException` 的 Medium finding。
+- [x] 将 persistence 端不可见 Endpoint 转换为既有 Application `EndpointNotFound`，并添加 stale reference 回归测试。
+- [x] 执行本地、Docker PHP 8.5 质量 Gate 与相关 HTTP Runtime 验证。
+- [ ] 推送、等待 CI 并更新 Draft PR 证据。
+- [ ] 等待 Independent Review 复核；最终状态保持 `INCOMPLETE`。

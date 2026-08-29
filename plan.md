@@ -94,4 +94,4 @@
 - [x] 确认现有 Draft PR #11、`feature/event-delivery-matching@1b53896` 与 CI run `33261196549` 为 PASS，并复核 Issue、规范、实现和现有并发测试。
 - [x] 让 MySQL 回归测试在真实 `CreateEvent` 外层事务中经过真实 matcher 锁、并发 Endpoint 变更、CreateDelivery 与提交窗口。
 - [x] 补录 Issue #10、最初 Prompt 与本次整改 Prompt 的完整原文，并固化“完整原文”规则。
-- [ ] 已执行本机/Docker 质量门与 MySQL 专项验证；待提交、推送、CI 与 Draft PR #11 证据同步。
+- [ ] 已执行本机/Docker 质量门与 MySQL 专项验证，整改功能提交 CI 已 PASS；待推送开发记录证据、最终 CI 与 Draft PR #11 证据同步。

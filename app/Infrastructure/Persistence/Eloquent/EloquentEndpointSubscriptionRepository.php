@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence\Eloquent;
 
+use App\Application\Endpoint\EndpointNotFound;
 use App\Application\Subscription\EndpointSubscriptionRepository;
 use App\Domain\Endpoint\EndpointId;
 use App\Domain\Subscription\EndpointSubscriptions;
@@ -53,11 +54,16 @@ final class EloquentEndpointSubscriptionRepository implements EndpointSubscripti
 
     private function internalEndpointId(EndpointId $endpointId): int
     {
-        /** @var int $id */
-        $id = EndpointRecord::query()
+        $record = EndpointRecord::query()
             ->where('public_id', $endpointId->toString())
-            ->firstOrFail()
-            ->getKey();
+            ->first();
+
+        if ($record === null) {
+            throw new EndpointNotFound($endpointId->toString());
+        }
+
+        /** @var int $id */
+        $id = $record->getKey();
 
         return $id;
     }

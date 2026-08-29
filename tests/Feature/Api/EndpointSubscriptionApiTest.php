@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Application\Endpoint\EndpointRepository;
+use App\Application\Subscription\EndpointSubscriptionRepository;
+use App\Domain\Endpoint\Endpoint;
+use App\Domain\Endpoint\EndpointId;
+use App\Domain\Subscription\EndpointSubscriptions;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -102,6 +107,61 @@ final class EndpointSubscriptionApiTest extends TestCase
         $this->getJson("/api/endpoints/{$id}/subscriptions")->assertNotFound();
         $this->putJson("/api/endpoints/{$id}/subscriptions", ['types' => ['order.paid']])
             ->assertNotFound();
+    }
+
+    public function test_a_soft_delete_between_endpoint_lookup_and_subscription_persistence_returns_not_found(): void
+    {
+        $id = $this->createEndpoint();
+        $endpoints = app(EndpointRepository::class);
+        $endpoint = $endpoints->find($id);
+
+        self::assertInstanceOf(Endpoint::class, $endpoint);
+
+        $this->app->instance(
+            EndpointSubscriptionRepository::class,
+            new class(app(EndpointSubscriptionRepository::class), $endpoints, $endpoint) implements EndpointSubscriptionRepository
+            {
+                private bool $isDeleted = false;
+
+                public function __construct(
+                    private EndpointSubscriptionRepository $subscriptions,
+                    private EndpointRepository $endpoints,
+                    private Endpoint $endpoint,
+                ) {}
+
+                public function forEndpoint(EndpointId $endpointId): EndpointSubscriptions
+                {
+                    $this->softDeleteEndpoint();
+
+                    return $this->subscriptions->forEndpoint($endpointId);
+                }
+
+                public function replace(EndpointSubscriptions $subscriptions): void
+                {
+                    $this->softDeleteEndpoint();
+                    $this->subscriptions->replace($subscriptions);
+                }
+
+                private function softDeleteEndpoint(): void
+                {
+                    if ($this->isDeleted) {
+                        return;
+                    }
+
+                    $this->endpoints->delete($this->endpoint);
+                    $this->isDeleted = true;
+                }
+            },
+        );
+
+        $this->putJson("/api/endpoints/{$id}/subscriptions", [
+            'types' => ['order.paid'],
+        ])
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Endpoint not found.');
+
+        $this->assertSoftDeleted('endpoints', ['public_id' => $id]);
+        $this->assertDatabaseCount('endpoint_subscriptions', 0);
     }
 
     public function test_the_database_prevents_duplicate_endpoint_and_event_type_rows(): void

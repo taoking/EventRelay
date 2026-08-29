@@ -55,3 +55,11 @@
 - [x] 添加 Unit / Feature / Architecture 测试并执行本地、Docker PHP 8.5 与真实 HTTP Runtime Gate。
 - [x] 审核差异、提交并推送 `83e3993`，创建关联 #6 的 Draft PR #7；CI run `33133000300` 为 PASS。
 - [ ] 等待 Independent Review；在其完成前最终状态保持 `INCOMPLETE`。
+
+## PR #7：TOCTOU / 软删除竞态 Medium 整改
+
+- [x] 阅读 Independent Review，确认只整改 persistence 二次查询在 soft delete 后泄漏 Infrastructure `ModelNotFoundException` 的 Medium finding。
+- [x] 将 persistence 端不可见 Endpoint 转换为既有 Application `EndpointNotFound`，并添加 stale reference 回归测试。
+- [x] 执行本地、Docker PHP 8.5 质量 Gate 与相关 HTTP Runtime 验证。
+- [ ] 推送、等待 CI 并更新 Draft PR 证据。
+- [ ] 等待 Independent Review 复核；最终状态保持 `INCOMPLETE`。

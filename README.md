@@ -1,6 +1,6 @@
 # EventRelay
 
-EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD、Event 接收 API、Endpoint Event Type Subscription 与 Delivery 历史记录，不包含自动 Delivery 创建或 Webhook 投递能力。
+EventRelay 是一个使用 PHP/Laravel 构建的事件通知与 Webhook 可靠投递平台。工程治理基线（Phase 0）已完成；当前实现包含 Endpoint CRUD、Event 接收 API、Endpoint Event Type Subscription、Delivery 历史记录与 pending Delivery 的 Redis Queue 调度骨架，不发送 Webhook。
 
 ## 技术基线
 
@@ -85,12 +85,20 @@ Event type 使用与 Event 接收 API 相同的领域规则：小写字母、数
 
 ## Delivery API
 
-Delivery 是 `Event + Endpoint` 的唯一、不可变历史记录；新建记录的状态固定为 `pending`。Delivery 创建仍仅是内部 Application 能力：Event 创建会根据符合条件的 Subscription 自动调用它；不提供公开创建 API，也不会入队或发送 Webhook。
+Delivery 是 `Event + Endpoint` 的唯一、不可变历史记录；新建记录的状态固定为 `pending`。Delivery 创建仍仅是内部 Application 能力：Event 创建会根据符合条件的 Subscription 自动调用它。MySQL Delivery 是业务事实；transaction commit 后，系统请求固定 `redis` connection 的 `deliveries` queue 调度仅携带 Delivery UUID 的 Worker Job。Worker 当前只重新读取并确认 pending Delivery，既不发送 Webhook，也不改变状态。
 
 - `GET /api/deliveries`：按创建顺序稳定返回 Delivery 列表。
 - `GET /api/deliveries/{id}`：返回单条历史 Delivery。
 
 响应使用 `{ "data": ... }`，返回公开 UUID、`event_id`、`endpoint_id`、`status`、`created_at` 和 `updated_at`。不提供 `POST`、`PATCH` 或 `DELETE` Delivery API。重复的内部创建调用通过数据库 `(event_id, endpoint_id)` 唯一约束保证返回同一条 Delivery；Endpoint 软删除后，历史 Delivery 仍可读取，但不可再创建新的 Delivery。
+
+若 Redis publication 暂时失败，已提交的 Event/Delivery 仍按 `201` 语义保留为 `pending`；可人工执行以下命令以按稳定顺序、有限批量重新调度：
+
+```sh
+php artisan deliveries:enqueue-pending --limit=100
+```
+
+这是 at-least-once recovery 工具，不是 Transactional Outbox 或 exactly-once 方案。
 
 ## 工程治理
 

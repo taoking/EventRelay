@@ -95,3 +95,19 @@
 - [x] 让 MySQL 回归测试在真实 `CreateEvent` 外层事务中经过真实 matcher 锁、并发 Endpoint 变更、CreateDelivery 与提交窗口。
 - [x] 补录 Issue #10、最初 Prompt 与本次整改 Prompt 的完整原文，并固化“完整原文”规则。
 - [ ] 已执行本机/Docker 质量门与 MySQL 专项验证，整改功能提交 CI 已 PASS；待推送开发记录证据、最终 CI 与 Draft PR #11 证据同步。
+
+## Issue #12：Laravel Queue / Redis Delivery 调度骨架
+
+- [x] 确认 `main@1d9e6f737cb7937c3cc53df4eb9d66979032bedf` 及 post-merge CI run `33264733096` 为 PASS，创建 `feature/delivery-redis-queue` 并完成规范、Issue 与现有实现勘查。
+- [x] 建立 Application queue/worker/recovery contracts，并让 CreateEvent 在 MySQL commit 后调度 Delivery。
+- [x] 实现 Redis `deliveries` Job、pending finder 与 Console recovery command，保持 Outbox、HTTP、Attempt 和状态机均不在范围内。
+- [x] 增加 Unit、Feature、MySQL/Redis integration 与 Worker 回归，补录完整来源，执行质量门和 Docker Runtime。
+- [x] 审核差异、提交推送、创建 Draft PR #13、等待 GitHub Actions run `33272462771` PASS 并同步真实证据；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #13：Redis publication 与 unique dispatch 整改
+
+- [x] 阅读 PR #13 Independent Review、Issue #12、必读规范、开发记录、现有 Queue 实现及 Laravel 13 PendingDispatch / Dispatcher / UniqueLock 本地源码。
+- [x] 精确转换 Predis 服务端 publication failure，并锁住 commit 后 HTTP 201 语义。
+- [x] 使用真实 PendingDispatch unique-lock 路径，并在 publication failure 后释放该 Job 的 lock。
+- [x] 添加真实 Redis duplicate enqueue 与 immediate recovery 回归测试，完成双环境质量门和 Docker Runtime。
+- [x] 审核、提交、推送，整改功能 commit `421b72e` 的 CI run `33289678696` PASS；待推送证据同步并等待最终 CI，Independent Review 前保持 `INCOMPLETE`。

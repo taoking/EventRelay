@@ -155,4 +155,4 @@
 - [x] 复核 Draft PR #19、`feature/webhook-hmac-signing@6dd47e15`、CI run `33321629838` 与两项审查 blocker。
 - [x] 将 Delivery URL/签名 key 原子快照设为 `CreateDelivery` 的强制 Application contract，删除可选 unsigned fallback。
 - [x] 修复 `DeliveryRepository::createOrGet()` 的签名 key 无损持久化与 Endpoint 归属校验，并补充回归测试。
-- [ ] 保存完整整改 Prompt，执行双环境质量门、轻量 Docker signed smoke、推送/CI 与 PR 证据同步；Independent Review #2 前保持 `INCOMPLETE`。
+- [x] 保存完整整改 Prompt，执行双环境质量门与轻量 Docker signed smoke；待推送/CI 与 PR 证据同步，Independent Review #2 前保持 `INCOMPLETE`。

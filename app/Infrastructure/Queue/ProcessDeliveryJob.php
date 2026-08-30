@@ -7,13 +7,13 @@ namespace App\Infrastructure\Queue;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Domain\Delivery\DeliveryId;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 
-final class ProcessDeliveryJob implements ShouldBeUnique, ShouldQueue
+final class ProcessDeliveryJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;
@@ -23,7 +23,7 @@ final class ProcessDeliveryJob implements ShouldBeUnique, ShouldQueue
 
     public int $timeout = 10;
 
-    public int $uniqueFor = 60;
+    public int $uniqueFor = 300;
 
     public function __construct(
         public readonly string $deliveryId,

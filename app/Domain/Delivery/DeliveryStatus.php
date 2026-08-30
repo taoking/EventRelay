@@ -8,6 +8,7 @@ enum DeliveryStatus: string
 {
     case Pending = 'pending';
     case Processing = 'processing';
+    case RetryScheduled = 'retry_scheduled';
     case Succeeded = 'succeeded';
     case Failed = 'failed';
 }

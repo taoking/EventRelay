@@ -10,4 +10,5 @@ enum DeliveryFailureType: string
     case Timeout = 'timeout';
     case NetworkError = 'network_error';
     case UnsafeTarget = 'unsafe_target';
+    case StaleProcessing = 'stale_processing';
 }

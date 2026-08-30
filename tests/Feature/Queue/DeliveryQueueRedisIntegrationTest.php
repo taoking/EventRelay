@@ -66,6 +66,11 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
                     $this->queue->enqueue($deliveryId);
                 }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
+                {
+                    $this->queue->schedule($deliveryId, $availableAt);
+                }
             },
         );
 

@@ -23,9 +23,24 @@ final readonly class DeliveryAttempt
         private ?DateTimeImmutable $finishedAt,
     ) {}
 
-    public static function start(DeliveryId $deliveryId): self
+    public static function start(DeliveryId $deliveryId, int $number = 1, ?DateTimeInterface $startedAt = null): self
     {
-        return new self(DeliveryAttemptId::generate(), $deliveryId, 1, DeliveryAttemptStatus::Started, null, null, null, null, new DateTimeImmutable, null);
+        if ($number < 1) {
+            throw new \LogicException('Delivery attempt number must be at least one.');
+        }
+
+        return new self(
+            DeliveryAttemptId::generate(),
+            $deliveryId,
+            $number,
+            DeliveryAttemptStatus::Started,
+            null,
+            null,
+            null,
+            null,
+            $startedAt === null ? new DateTimeImmutable : DateTimeImmutable::createFromInterface($startedAt),
+            null,
+        );
     }
 
     public static function reconstitute(
@@ -54,14 +69,43 @@ final readonly class DeliveryAttempt
         );
     }
 
-    public function succeed(int $statusCode, int $durationMs): self
+    public function succeed(int $statusCode, int $durationMs, ?DateTimeInterface $finishedAt = null): self
     {
-        return new self($this->id, $this->deliveryId, $this->number, DeliveryAttemptStatus::Succeeded, $statusCode, null, null, $durationMs, $this->startedAt, new DateTimeImmutable);
+        $this->assertStarted();
+
+        return new self($this->id, $this->deliveryId, $this->number, DeliveryAttemptStatus::Succeeded, $statusCode, null, null, $durationMs, $this->startedAt, $finishedAt === null ? new DateTimeImmutable : DateTimeImmutable::createFromInterface($finishedAt));
     }
 
-    public function fail(DeliveryFailureType $type, string $message, ?int $statusCode, int $durationMs): self
+    public function fail(DeliveryFailureType $type, string $message, ?int $statusCode, int $durationMs, ?DateTimeInterface $finishedAt = null): self
     {
-        return new self($this->id, $this->deliveryId, $this->number, DeliveryAttemptStatus::Failed, $statusCode, $type, mb_substr($message, 0, 500), $durationMs, $this->startedAt, new DateTimeImmutable);
+        $this->assertStarted();
+
+        return new self($this->id, $this->deliveryId, $this->number, DeliveryAttemptStatus::Failed, $statusCode, $type, mb_substr($message, 0, 500), $durationMs, $this->startedAt, $finishedAt === null ? new DateTimeImmutable : DateTimeImmutable::createFromInterface($finishedAt));
+    }
+
+    public function abandon(string $message, ?DateTimeInterface $finishedAt = null): self
+    {
+        $this->assertStarted();
+
+        return new self(
+            $this->id,
+            $this->deliveryId,
+            $this->number,
+            DeliveryAttemptStatus::Abandoned,
+            null,
+            DeliveryFailureType::StaleProcessing,
+            mb_substr($message, 0, 500),
+            null,
+            $this->startedAt,
+            $finishedAt === null ? new DateTimeImmutable : DateTimeImmutable::createFromInterface($finishedAt),
+        );
+    }
+
+    private function assertStarted(): void
+    {
+        if ($this->status !== DeliveryAttemptStatus::Started) {
+            throw new \LogicException('Only a started delivery attempt can be finalized.');
+        }
     }
 
     public function id(): DeliveryAttemptId

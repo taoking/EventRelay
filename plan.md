@@ -127,3 +127,11 @@
 - [x] 修复 IPv6 `CURLOPT_RESOLVE` 格式，抽出安全选项安装边界并保证配置失败不执行网络请求。
 - [x] 新增完整 `ProcessPendingDelivery` 两进程并发回归，并修正 Worker 完成日志。
 - [x] 保存整改任务追溯，执行本机/Docker 质量门与 Docker Security/并发 Runtime；提交、推送、等待 CI 并同步 Draft PR 证据；Independent Review #2 前保持 `INCOMPLETE`。
+
+## Issue #16：Retry / Backoff / stale-processing recovery
+
+- [x] 确认 `main@b9eeaa5cd5993cccf144721c9fc91eec6adf6d10` 与 post-merge CI run `33308179391` 为 PASS，创建 `feature/delivery-retry-recovery` 并阅读 Issue、必读规范和现有实现。
+- [ ] 建立 Clock、RetryPolicy、状态机、Attempt abandoned 语义与持久化演进。
+- [ ] 实现 due retry/stale finder、原子 claim/finalize/recovery、delayed Redis queue 与两个 recovery command。
+- [ ] 添加 Unit、Feature、MySQL/Redis 并发与 HTTP retry 回归，并保存 Issue/Prompt 完整原文。
+- [ ] 执行双环境质量门与 Docker Runtime，审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。

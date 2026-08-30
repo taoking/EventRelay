@@ -9,4 +9,5 @@ enum DeliveryAttemptStatus: string
     case Started = 'started';
     case Succeeded = 'succeeded';
     case Failed = 'failed';
+    case Abandoned = 'abandoned';
 }

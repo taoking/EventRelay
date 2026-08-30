@@ -43,6 +43,8 @@ final class PendingDeliveryRecoveryTest extends TestCase
                 {
                     $this->queued[] = $deliveryId->toString();
                 }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
             },
         );
 

@@ -67,6 +67,8 @@ final class EnqueuePendingDeliveriesCommandTest extends TestCase
                     {
                         $this->queued[] = $deliveryId->toString();
                     }
+
+                    public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
                 },
             ),
         );

@@ -128,6 +128,7 @@ final class EloquentDeliveryRepository implements DeliveryRepository
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,
+            $record->next_attempt_at,
         );
     }
 

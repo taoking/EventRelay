@@ -7,6 +7,7 @@ namespace App\Infrastructure\Queue;
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Domain\Delivery\DeliveryId;
+use DateTimeImmutable;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Foundation\Bus\PendingDispatch;
@@ -24,7 +25,18 @@ final class LaravelRedisDeliveryQueue implements DeliveryQueue
 
     public function enqueue(DeliveryId $deliveryId): void
     {
-        $job = new ProcessDeliveryJob($deliveryId->toString());
+        $this->dispatch(new ProcessDeliveryJob($deliveryId->toString()), $deliveryId);
+    }
+
+    public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
+    {
+        $job = (new ProcessDeliveryJob($deliveryId->toString()))->delay($availableAt);
+
+        $this->dispatch($job, $deliveryId);
+    }
+
+    private function dispatch(ProcessDeliveryJob $job, DeliveryId $deliveryId): void
+    {
 
         try {
             $pendingDispatch = new PendingDispatch($job);

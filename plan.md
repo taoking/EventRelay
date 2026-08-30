@@ -135,3 +135,9 @@
 - [x] 实现 due retry/stale finder、原子 claim/finalize/recovery、delayed Redis queue 与两个 recovery command。
 - [x] 添加 Unit、Feature、MySQL/Redis 并发与 HTTP retry 回归，并保存 Issue/Prompt 完整原文。
 - [x] 执行双环境质量门与 Docker Runtime，审核、提交、推送、创建 Draft PR #17，并确认实现/测试 HEAD `abb3dd4` 的 GitHub Actions run `33315933453` 为 PASS；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #17：Independent Review #1 整改
+
+- [x] 阅读 Independent Review #1、Issue #16、必读规范、开发记录及当前 Delivery retry/stale 实现；确认仅处理真实 stale-late-finalize 并发证据与两项 Docker Runtime 缺口。
+- [x] 新增 MySQL 双进程、socket barrier、真实 `ProcessPendingDelivery → transport → finalize` 对真实 stale recovery 的竞争回归。
+- [ ] 物理停止 Docker Redis，完成 delayed publication-gap 的 durable state 与 due-retry recovery Runtime；随后执行质量门、推送、等待 CI，并同步 Draft PR 证据。

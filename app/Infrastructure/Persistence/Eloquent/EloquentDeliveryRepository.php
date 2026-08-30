@@ -30,6 +30,7 @@ final class EloquentDeliveryRepository implements DeliveryRepository
                     'public_id' => $delivery->id()->toString(),
                     'event_id' => $eventId,
                     'endpoint_id' => $endpointId,
+                    'target_url' => $delivery->targetUrl(),
                     'status' => $delivery->status()->value,
                     'created_at' => $delivery->createdAt(),
                     'updated_at' => $delivery->updatedAt(),
@@ -112,8 +113,8 @@ final class EloquentDeliveryRepository implements DeliveryRepository
 
     private function toDomain(DeliveryRecord $record): Delivery
     {
-        if ($record->created_at === null || $record->updated_at === null) {
-            throw new LogicException('Persisted delivery timestamps are required.');
+        if ($record->created_at === null || $record->updated_at === null || $record->target_url === null) {
+            throw new LogicException('Persisted delivery fields are required.');
         }
 
         $eventId = $this->eventPublicId($record->event_id);
@@ -123,6 +124,7 @@ final class EloquentDeliveryRepository implements DeliveryRepository
             DeliveryId::fromString($record->public_id),
             EventId::fromString($eventId),
             EndpointId::fromString($endpointId),
+            $record->target_url,
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,

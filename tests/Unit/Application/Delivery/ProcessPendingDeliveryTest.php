@@ -4,12 +4,22 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Application\Delivery;
 
+use App\Application\Delivery\ClaimedDelivery;
+use App\Application\Delivery\DeliveryExecutionRepository;
 use App\Application\Delivery\DeliveryNotFound;
 use App\Application\Delivery\DeliveryRepository;
 use App\Application\Delivery\ProcessPendingDelivery;
+use App\Application\Delivery\WebhookRequest;
+use App\Application\Delivery\WebhookResponse;
+use App\Application\Delivery\WebhookTarget;
+use App\Application\Delivery\WebhookTargetResolver;
+use App\Application\Delivery\WebhookTransport;
+use App\Application\Event\EventRepository;
 use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
+use App\Domain\DeliveryAttempt\DeliveryAttempt;
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\Event\Event;
 use App\Domain\Event\EventId;
 use Tests\TestCase;
 
@@ -20,6 +30,7 @@ final class ProcessPendingDeliveryTest extends TestCase
         $delivery = Delivery::create(
             EventId::fromString('7db4d301-f44a-4dab-a545-6f9046cbeb6f'),
             EndpointId::fromString('8db4d301-f44a-4dab-a545-6f9046cbeb6f'),
+            'https://receiver.example/webhook',
         );
 
         (new ProcessPendingDelivery(
@@ -42,6 +53,51 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function find(string $id): ?Delivery
                 {
                     return $id === $this->delivery->id()->toString() ? $this->delivery : null;
+                }
+            },
+            new class implements DeliveryExecutionRepository
+            {
+                public function claim(DeliveryId $deliveryId): ?ClaimedDelivery
+                {
+                    return null;
+                }
+
+                public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void {}
+
+                public function attempts(DeliveryId $deliveryId): array
+                {
+                    return [];
+                }
+            },
+            new class implements EventRepository
+            {
+                public function save(Event $event): Event
+                {
+                    return $event;
+                }
+
+                public function all(): array
+                {
+                    return [];
+                }
+
+                public function find(string $id): ?Event
+                {
+                    return null;
+                }
+            },
+            new class implements WebhookTargetResolver
+            {
+                public function resolve(string $url): WebhookTarget
+                {
+                    throw new \LogicException('not called');
+                }
+            },
+            new class implements WebhookTransport
+            {
+                public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+                {
+                    throw new \LogicException('not called');
                 }
             },
         ))->handle($delivery->id());
@@ -67,6 +123,51 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function find(string $id): ?Delivery
                 {
                     return null;
+                }
+            },
+            new class implements DeliveryExecutionRepository
+            {
+                public function claim(DeliveryId $deliveryId): ?ClaimedDelivery
+                {
+                    return null;
+                }
+
+                public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void {}
+
+                public function attempts(DeliveryId $deliveryId): array
+                {
+                    return [];
+                }
+            },
+            new class implements EventRepository
+            {
+                public function save(Event $event): Event
+                {
+                    return $event;
+                }
+
+                public function all(): array
+                {
+                    return [];
+                }
+
+                public function find(string $id): ?Event
+                {
+                    return null;
+                }
+            },
+            new class implements WebhookTargetResolver
+            {
+                public function resolve(string $url): WebhookTarget
+                {
+                    throw new \LogicException('not called');
+                }
+            },
+            new class implements WebhookTransport
+            {
+                public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+                {
+                    throw new \LogicException('not called');
                 }
             },
         );

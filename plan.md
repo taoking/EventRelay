@@ -111,3 +111,11 @@
 - [x] 使用真实 PendingDispatch unique-lock 路径，并在 publication failure 后释放该 Job 的 lock。
 - [x] 添加真实 Redis duplicate enqueue 与 immediate recovery 回归测试，完成双环境质量门和 Docker Runtime。
 - [x] 审核、提交、推送，整改功能 commit `421b72e` 的 CI run `33289678696` PASS；待推送证据同步并等待最终 CI，Independent Review 前保持 `INCOMPLETE`。
+
+## Issue #14：Webhook HTTP Delivery 与 DeliveryAttempt
+
+- [x] 确认 `main@391acdb87b5b2968be724865b0d940b8060ecafc` 及 post-merge CI run `33292301949` 为 PASS，阅读必读规范、Issue、开发记录与现有 Delivery/Queue 实现，并创建 `feature/webhook-http-delivery-attempt`。
+- [x] 实现 target URL snapshot、Delivery 状态机、DeliveryAttempt 持久化与只读 API。
+- [x] 实现原子 claim、事务 A/B、Webhook transport、SSRF/DNS pinning 与稳定失败分类。
+- [x] 添加 Unit/Feature/MySQL 并发/HTTP/SSRF 回归，保存完整来源并执行双环境质量门和 Docker Runtime。
+- [ ] 审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。

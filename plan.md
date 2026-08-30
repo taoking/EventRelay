@@ -141,3 +141,18 @@
 - [x] 阅读 Independent Review #1、Issue #16、必读规范、开发记录及当前 Delivery retry/stale 实现；确认仅处理真实 stale-late-finalize 并发证据与两项 Docker Runtime 缺口。
 - [x] 新增 MySQL 双进程、socket barrier、真实 `ProcessPendingDelivery → transport → finalize` 对真实 stale recovery 的竞争回归。
 - [x] 物理停止 Docker Redis，完成 delayed publication-gap 的 durable state 与 due-retry recovery Runtime；执行本机/Docker 质量门，待推送、最终 CI 与 Draft PR 证据同步。
+
+## Issue #18：Webhook HMAC Signing 与 Endpoint Secret Rotation
+
+- [x] 确认 `main@11ee0d0547607ae79455e8ecd4f85bd3a07ed08c`、CI run `33319316183` 为 PASS，且 Issue #16 已关闭；创建 `feature/webhook-hmac-signing` 并阅读必读规范、Issue 与现有实现。
+- [x] 建立版本化、加密落库的端点签名密钥，以及一次性 reveal / rotation API。
+- [x] 将 Delivery target URL 与 signing key ID 置于同一端点锁定快照窗口，并让 Worker 对实际 HTTP body 生成 v1 HMAC。
+- [x] 完成签名 retry、泄漏、MySQL rotation、CreateDelivery/rotation barrier 并发与 Docker 独立验签验证。
+- [x] 保存完整任务来源，审核、提交、推送、创建 Draft PR #19，并确认实现 HEAD 的 CI run `33321379921` 为 PASS；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #19：Independent Review #1 签名快照契约整改
+
+- [x] 复核 Draft PR #19、`feature/webhook-hmac-signing@6dd47e15`、CI run `33321629838` 与两项审查 blocker。
+- [x] 将 Delivery URL/签名 key 原子快照设为 `CreateDelivery` 的强制 Application contract，删除可选 unsigned fallback。
+- [x] 修复 `DeliveryRepository::createOrGet()` 的签名 key 无损持久化与 Endpoint 归属校验，并补充回归测试。
+- [x] 保存完整整改 Prompt，执行双环境质量门、轻量 Docker signed smoke、push 与 GitHub Actions run `33330538162` PASS；待最终 PR 证据同步，Independent Review #2 前保持 `INCOMPLETE`。

@@ -17,6 +17,7 @@ use App\Domain\DeliveryAttempt\DeliveryAttemptId;
 use App\Domain\DeliveryAttempt\DeliveryAttemptStatus;
 use App\Domain\DeliveryAttempt\DeliveryFailureType;
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\EndpointSigningSecret\EndpointSigningSecretId;
 use App\Domain\Event\EventId;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
@@ -206,6 +207,7 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
             EventId::fromString($eventId),
             EndpointId::fromString($endpointId),
             $record->target_url,
+            $record->signing_secret_id === null ? null : EndpointSigningSecretId::fromString($this->signingSecretPublicId($record->signing_secret_id)),
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,
@@ -227,5 +229,16 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
             $record->started_at,
             $record->finished_at,
         );
+    }
+
+    private function signingSecretPublicId(int $secretId): string
+    {
+        $record = EndpointSigningSecretRecord::query()->find($secretId);
+
+        if ($record === null) {
+            throw new LogicException('Persisted signing-secret reference is missing.');
+        }
+
+        return $record->public_id;
     }
 }

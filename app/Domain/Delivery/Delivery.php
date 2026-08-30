@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Delivery;
 
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\EndpointSigningSecret\EndpointSigningSecretId;
 use App\Domain\Event\EventId;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -16,6 +17,7 @@ final readonly class Delivery
         private EventId $eventId,
         private EndpointId $endpointId,
         private string $targetUrl,
+        private ?EndpointSigningSecretId $signingSecretId,
         private DeliveryStatus $status,
         private ?DateTimeImmutable $nextAttemptAt,
         private DateTimeImmutable $createdAt,
@@ -26,8 +28,12 @@ final readonly class Delivery
         }
     }
 
-    public static function create(EventId $eventId, EndpointId $endpointId, string $targetUrl): self
-    {
+    public static function create(
+        EventId $eventId,
+        EndpointId $endpointId,
+        string $targetUrl,
+        ?EndpointSigningSecretId $signingSecretId = null,
+    ): self {
         $now = new DateTimeImmutable;
 
         return new self(
@@ -35,6 +41,7 @@ final readonly class Delivery
             $eventId,
             $endpointId,
             $targetUrl,
+            $signingSecretId,
             DeliveryStatus::Pending,
             null,
             $now,
@@ -47,6 +54,7 @@ final readonly class Delivery
         EventId $eventId,
         EndpointId $endpointId,
         string $targetUrl,
+        ?EndpointSigningSecretId $signingSecretId,
         DeliveryStatus $status,
         DateTimeInterface $createdAt,
         DateTimeInterface $updatedAt,
@@ -57,6 +65,7 @@ final readonly class Delivery
             $eventId,
             $endpointId,
             $targetUrl,
+            $signingSecretId,
             $status,
             $nextAttemptAt === null ? null : DateTimeImmutable::createFromInterface($nextAttemptAt),
             DateTimeImmutable::createFromInterface($createdAt),
@@ -82,6 +91,11 @@ final readonly class Delivery
     public function targetUrl(): string
     {
         return $this->targetUrl;
+    }
+
+    public function signingSecretId(): ?EndpointSigningSecretId
+    {
+        return $this->signingSecretId;
     }
 
     public function status(): DeliveryStatus
@@ -148,6 +162,7 @@ final readonly class Delivery
             $this->eventId,
             $this->endpointId,
             $this->targetUrl,
+            $this->signingSecretId,
             $next,
             $nextAttemptAt === null ? null : DateTimeImmutable::createFromInterface($nextAttemptAt),
             $this->createdAt,

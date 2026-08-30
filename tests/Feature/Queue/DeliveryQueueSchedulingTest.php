@@ -6,12 +6,13 @@ namespace Tests\Feature\Queue;
 
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
-use App\Application\Delivery\DeliveryRepository;
+use App\Application\Delivery\DeliverySnapshotCreator;
 use App\Application\Event\CreateEvent;
 use App\Application\Subscription\SubscriptionMatcher;
 use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\Event\EventId;
 use App\Domain\Event\EventType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -78,18 +79,18 @@ final class DeliveryQueueSchedulingTest extends TestCase
             },
         );
 
-        $deliveries = app(DeliveryRepository::class);
+        $snapshots = app(DeliverySnapshotCreator::class);
         $this->app->instance(
-            DeliveryRepository::class,
-            new class($deliveries) implements DeliveryRepository
+            DeliverySnapshotCreator::class,
+            new class($snapshots) implements DeliverySnapshotCreator
             {
                 private int $calls = 0;
 
                 public function __construct(
-                    private DeliveryRepository $deliveries,
+                    private DeliverySnapshotCreator $snapshots,
                 ) {}
 
-                public function createOrGet(Delivery $delivery): Delivery
+                public function createOrGetSnapshot(EventId $eventId, EndpointId $endpointId): Delivery
                 {
                     $this->calls++;
 
@@ -97,17 +98,7 @@ final class DeliveryQueueSchedulingTest extends TestCase
                         throw new RuntimeException('Forced delivery persistence failure.');
                     }
 
-                    return $this->deliveries->createOrGet($delivery);
-                }
-
-                public function all(): array
-                {
-                    return $this->deliveries->all();
-                }
-
-                public function find(string $id): ?Delivery
-                {
-                    return $this->deliveries->find($id);
+                    return $this->snapshots->createOrGetSnapshot($eventId, $endpointId);
                 }
             },
         );

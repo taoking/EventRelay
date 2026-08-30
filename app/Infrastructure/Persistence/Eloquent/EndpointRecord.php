@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $name
  * @property string $url
  * @property string $status
+ * @property int|null $current_signing_secret_id
  * @property \DateTimeInterface|null $created_at
  * @property \DateTimeInterface|null $updated_at
  */
@@ -29,5 +30,6 @@ final class EndpointRecord extends Model
         'name',
         'url',
         'status',
+        'current_signing_secret_id',
     ];
 }

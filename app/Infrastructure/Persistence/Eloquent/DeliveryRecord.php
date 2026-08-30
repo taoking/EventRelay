@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $event_id
  * @property int $endpoint_id
  * @property string|null $target_url
+ * @property int|null $signing_secret_id
  * @property string $status
  * @property \DateTimeInterface|null $next_attempt_at
  * @property \DateTimeInterface|null $created_at
@@ -28,6 +29,7 @@ final class DeliveryRecord extends Model
         'event_id',
         'endpoint_id',
         'target_url',
+        'signing_secret_id',
         'status',
         'next_attempt_at',
         'created_at',

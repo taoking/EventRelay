@@ -5,63 +5,79 @@ declare(strict_types=1);
 namespace App\Infrastructure\Persistence\Eloquent;
 
 use App\Application\Delivery\DeliveryRepository;
+use App\Application\Delivery\DeliverySnapshotCreator;
 use App\Application\Endpoint\EndpointNotFound;
 use App\Application\Event\EventNotFound;
 use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
 use App\Domain\Delivery\DeliveryStatus;
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\EndpointSigningSecret\EndpointSigningSecretId;
 use App\Domain\Event\EventId;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
-final class EloquentDeliveryRepository implements DeliveryRepository
+final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySnapshotCreator
 {
+    /** Retained for the existing internal persistence contract. */
     public function createOrGet(Delivery $delivery): Delivery
     {
         return DB::transaction(function () use ($delivery): Delivery {
-            $eventId = $this->internalEventId($delivery->eventId());
-            $endpointId = $this->internalEndpointId($delivery->endpointId());
+            $internalEventId = $this->internalEventId($delivery->eventId());
+            $internalEndpointId = $this->internalEndpointId($delivery->endpointId());
 
-            try {
-                $record = new DeliveryRecord;
-                $record->fill([
-                    'public_id' => $delivery->id()->toString(),
-                    'event_id' => $eventId,
-                    'endpoint_id' => $endpointId,
-                    'target_url' => $delivery->targetUrl(),
-                    'status' => $delivery->status()->value,
-                    'created_at' => $delivery->createdAt(),
-                    'updated_at' => $delivery->updatedAt(),
-                ]);
-                $record->save();
+            return $this->persistOrGet(
+                $delivery,
+                $internalEventId,
+                $internalEndpointId,
+                $delivery->targetUrl(),
+                $this->internalSigningSecretId($delivery->signingSecretId(), $internalEndpointId),
+            );
+        });
+    }
 
-                return $this->toDomain($record->refresh());
-            } catch (QueryException $exception) {
-                if (! $this->isDeliveryPairUniqueViolation($exception)) {
-                    throw $exception;
-                }
+    public function createOrGetSnapshot(EventId $eventId, EndpointId $endpointId): Delivery
+    {
+        return DB::transaction(function () use ($eventId, $endpointId): Delivery {
+            $internalEventId = $this->internalEventId($eventId);
+            $endpoint = EndpointRecord::query()
+                ->where('public_id', $endpointId->toString())
+                ->lockForUpdate()
+                ->first();
 
-                $existing = DeliveryRecord::query()
-                    ->where('event_id', $eventId)
-                    ->where('endpoint_id', $endpointId)
+            if ($endpoint === null) {
+                throw new EndpointNotFound($endpointId->toString());
+            }
+
+            $secretId = null;
+            if ($endpoint->current_signing_secret_id !== null) {
+                $secret = EndpointSigningSecretRecord::query()
+                    ->whereKey($endpoint->current_signing_secret_id)
                     ->lockForUpdate()
                     ->first();
 
-                if ($existing !== null) {
-                    return $this->toDomain($existing);
+                if ($secret === null || (int) $secret->endpoint_id !== (int) $endpoint->getKey()) {
+                    throw new LogicException('Endpoint signing-secret pointer is corrupt.');
                 }
-
-                throw $exception;
+                $secretId = EndpointSigningSecretId::fromString($secret->public_id);
             }
+
+            $delivery = Delivery::create($eventId, $endpointId, $endpoint->url, $secretId);
+
+            return $this->persistOrGet(
+                $delivery,
+                $internalEventId,
+                (int) $endpoint->getKey(),
+                $endpoint->url,
+                $endpoint->current_signing_secret_id,
+            );
         });
     }
 
     public function all(): array
     {
         $deliveries = [];
-
         foreach (DeliveryRecord::query()->orderBy('id')->get() as $record) {
             $deliveries[] = $this->toDomain($record);
         }
@@ -71,44 +87,64 @@ final class EloquentDeliveryRepository implements DeliveryRepository
 
     public function find(string $id): ?Delivery
     {
-        $record = DeliveryRecord::query()
-            ->where('public_id', $id)
-            ->first();
+        $record = DeliveryRecord::query()->where('public_id', $id)->first();
 
         return $record === null ? null : $this->toDomain($record);
     }
 
+    private function persistOrGet(Delivery $delivery, int $eventId, int $endpointId, string $targetUrl, ?int $signingSecretId): Delivery
+    {
+        try {
+            $record = new DeliveryRecord;
+            $record->fill([
+                'public_id' => $delivery->id()->toString(),
+                'event_id' => $eventId,
+                'endpoint_id' => $endpointId,
+                'target_url' => $targetUrl,
+                'signing_secret_id' => $signingSecretId,
+                'status' => $delivery->status()->value,
+                'created_at' => $delivery->createdAt(),
+                'updated_at' => $delivery->updatedAt(),
+            ]);
+            $record->save();
+
+            return $this->toDomain($record->refresh());
+        } catch (QueryException $exception) {
+            if (! $this->isDeliveryPairUniqueViolation($exception)) {
+                throw $exception;
+            }
+
+            // 锁定读绕开 repeatable-read 的旧 consistent snapshot。
+            $existing = DeliveryRecord::query()
+                ->where('event_id', $eventId)
+                ->where('endpoint_id', $endpointId)
+                ->lockForUpdate()
+                ->first();
+            if ($existing !== null) {
+                return $this->toDomain($existing);
+            }
+            throw $exception;
+        }
+    }
+
     private function internalEventId(EventId $eventId): int
     {
-        $record = EventRecord::query()
-            ->where('public_id', $eventId->toString())
-            ->first();
-
+        $record = EventRecord::query()->where('public_id', $eventId->toString())->first();
         if ($record === null) {
             throw new EventNotFound($eventId->toString());
         }
 
-        /** @var int $id */
-        $id = $record->getKey();
-
-        return $id;
+        return (int) $record->getKey();
     }
 
     private function internalEndpointId(EndpointId $endpointId): int
     {
-        $record = EndpointRecord::query()
-            ->lockForUpdate()
-            ->where('public_id', $endpointId->toString())
-            ->first();
-
+        $record = EndpointRecord::query()->lockForUpdate()->where('public_id', $endpointId->toString())->first();
         if ($record === null) {
             throw new EndpointNotFound($endpointId->toString());
         }
 
-        /** @var int $id */
-        $id = $record->getKey();
-
-        return $id;
+        return (int) $record->getKey();
     }
 
     private function toDomain(DeliveryRecord $record): Delivery
@@ -117,14 +153,12 @@ final class EloquentDeliveryRepository implements DeliveryRepository
             throw new LogicException('Persisted delivery fields are required.');
         }
 
-        $eventId = $this->eventPublicId($record->event_id);
-        $endpointId = $this->endpointPublicId($record->endpoint_id);
-
         return Delivery::reconstitute(
             DeliveryId::fromString($record->public_id),
-            EventId::fromString($eventId),
-            EndpointId::fromString($endpointId),
+            EventId::fromString($this->eventPublicId($record->event_id)),
+            EndpointId::fromString($this->endpointPublicId($record->endpoint_id)),
             $record->target_url,
+            $record->signing_secret_id === null ? null : EndpointSigningSecretId::fromString($this->signingSecretPublicId($record->signing_secret_id)),
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,
@@ -135,7 +169,6 @@ final class EloquentDeliveryRepository implements DeliveryRepository
     private function eventPublicId(int $eventId): string
     {
         $record = EventRecord::query()->find($eventId);
-
         if ($record === null) {
             throw new EventNotFound((string) $eventId);
         }
@@ -145,15 +178,42 @@ final class EloquentDeliveryRepository implements DeliveryRepository
 
     private function endpointPublicId(int $endpointId): string
     {
-        $record = EndpointRecord::query()
-            ->withTrashed()
-            ->find($endpointId);
-
+        $record = EndpointRecord::query()->withTrashed()->find($endpointId);
         if ($record === null) {
             throw new EndpointNotFound((string) $endpointId);
         }
 
         return $record->public_id;
+    }
+
+    private function signingSecretPublicId(int $secretId): string
+    {
+        $record = EndpointSigningSecretRecord::query()
+            ->lockForUpdate()
+            ->find($secretId);
+        if ($record === null) {
+            throw new LogicException('Persisted signing-secret reference is missing.');
+        }
+
+        return $record->public_id;
+    }
+
+    private function internalSigningSecretId(?EndpointSigningSecretId $secretId, int $endpointId): ?int
+    {
+        if ($secretId === null) {
+            return null;
+        }
+
+        $record = EndpointSigningSecretRecord::query()
+            ->where('public_id', $secretId->toString())
+            ->lockForUpdate()
+            ->first();
+
+        if ($record === null || (int) $record->endpoint_id !== $endpointId) {
+            throw new LogicException('Delivery signing-secret reference is missing or belongs to another endpoint.');
+        }
+
+        return (int) $record->getKey();
     }
 
     private function isDeliveryPairUniqueViolation(QueryException $exception): bool

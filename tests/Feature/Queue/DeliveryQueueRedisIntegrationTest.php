@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Queue;
 
+use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
+use App\Application\Delivery\EnqueuePendingDeliveries;
 use App\Domain\Delivery\DeliveryId;
+use App\Infrastructure\Queue\LaravelRedisDeliveryQueue;
+use App\Infrastructure\Queue\ProcessDeliveryJob;
+use Illuminate\Bus\UniqueLock;
+use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +22,7 @@ use Illuminate\Support\Facades\Redis;
 use Illuminate\Testing\TestResponse;
 use Predis\Connection\ConnectionException;
 use Predis\Connection\Resource\Exception\StreamInitException;
+use Predis\Response\ServerException;
 use RedisException;
 use Tests\TestCase;
 
@@ -144,6 +152,126 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
                     ], true)
                     && is_string($context['message']),
             ));
+    }
+
+    public function test_real_publisher_translates_redis_server_errors_and_releases_the_unique_lock(): void
+    {
+        $this->requireMySqlAndRedis();
+        $deliveryId = DeliveryId::fromString('adb4d301-f44a-4dab-a545-6f9046cbeb6f');
+        Log::spy();
+        $dispatcher = $this->replaceDispatcherWithServerFailure();
+
+        try {
+            app(LaravelRedisDeliveryQueue::class)->enqueue($deliveryId);
+            self::fail('A Redis server publication error must be translated.');
+        } catch (DeliveryQueueUnavailable $exception) {
+            self::assertSame($deliveryId->toString(), $exception->deliveryId->toString());
+            self::assertInstanceOf(ServerException::class, $exception->getPrevious());
+        } finally {
+            $this->app->instance(Dispatcher::class, $dispatcher);
+        }
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Delivery queue publication failed.', \Mockery::on(
+                static fn (array $context): bool => $context['delivery_id'] === $deliveryId->toString()
+                    && $context['queue'] === 'deliveries'
+                    && $context['connection'] === 'redis'
+                    && $context['exception'] === ServerException::class
+                    && $context['message'] === 'READONLY simulated publication failure'
+                    && ! array_key_exists('payload', $context),
+            ));
+
+        $this->assertUniqueLockCanBeAcquired($deliveryId);
+    }
+
+    public function test_redis_server_publication_failure_after_commit_returns_201_and_recovery_immediately_enqueues_the_delivery(): void
+    {
+        $this->requireMySqlAndRedis();
+        $this->clearDeliveriesQueue();
+
+        $endpointId = $this->createEndpoint('Server failure endpoint');
+        $this->replaceSubscriptions($endpointId, ['order.paid']);
+        $dispatcher = $this->replaceDispatcherWithServerFailure();
+
+        try {
+            $response = $this->postEvent('order.paid')->assertCreated();
+        } finally {
+            $this->app->instance(Dispatcher::class, $dispatcher);
+        }
+
+        $eventId = (string) $response->json('data.id');
+        $deliveryId = $this->deliveryIdForEvent($eventId);
+
+        $this->assertDatabaseCount('events', 1);
+        $this->assertDatabaseHas('deliveries', [
+            'public_id' => $deliveryId,
+            'status' => 'pending',
+        ]);
+        self::assertSame(0, $this->queueLength());
+
+        $result = app(EnqueuePendingDeliveries::class)->handle(100);
+
+        self::assertSame(1, $result->enqueued);
+        self::assertSame(0, $result->failed);
+        self::assertSame(1, $this->queueLength());
+        self::assertStringContainsString($deliveryId, Redis::connection()->lIndex('queues:deliveries', 0));
+
+        $this->releaseUniqueLock(DeliveryId::fromString($deliveryId));
+        $this->clearDeliveriesQueue();
+    }
+
+    public function test_real_unique_dispatch_keeps_only_one_queued_job_for_duplicate_delivery_enqueue_requests(): void
+    {
+        $this->requireMySqlAndRedis();
+        $this->clearDeliveriesQueue();
+
+        $endpointId = $this->createEndpoint('Unique dispatch endpoint');
+        $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
+        $delivery = app(CreateDelivery::class)->handle($eventId, $endpointId);
+        $deliveryId = DeliveryId::fromString($delivery->id);
+        $this->releaseUniqueLock($deliveryId);
+
+        try {
+            app(DeliveryQueue::class)->enqueue($deliveryId);
+            app(DeliveryQueue::class)->enqueue($deliveryId);
+
+            self::assertSame(1, $this->queueLength());
+            self::assertStringContainsString(
+                $deliveryId->toString(),
+                Redis::connection()->lIndex('queues:deliveries', 0),
+            );
+        } finally {
+            $this->releaseUniqueLock($deliveryId);
+            $this->clearDeliveriesQueue();
+        }
+    }
+
+    private function replaceDispatcherWithServerFailure(): Dispatcher
+    {
+        $originalDispatcher = app(Dispatcher::class);
+        $dispatcher = \Mockery::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->andThrow(new ServerException('READONLY simulated publication failure'));
+
+        $this->app->instance(Dispatcher::class, $dispatcher);
+
+        return $originalDispatcher;
+    }
+
+    private function assertUniqueLockCanBeAcquired(DeliveryId $deliveryId): void
+    {
+        $job = new ProcessDeliveryJob($deliveryId->toString());
+        $uniqueLock = new UniqueLock(app(Cache::class));
+
+        self::assertTrue($uniqueLock->acquire($job));
+        $uniqueLock->release($job);
+    }
+
+    private function releaseUniqueLock(DeliveryId $deliveryId): void
+    {
+        (new UniqueLock(app(Cache::class)))->release(new ProcessDeliveryJob($deliveryId->toString()));
     }
 
     private function requireMySqlAndRedis(): void

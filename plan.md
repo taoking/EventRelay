@@ -103,3 +103,11 @@
 - [x] 实现 Redis `deliveries` Job、pending finder 与 Console recovery command，保持 Outbox、HTTP、Attempt 和状态机均不在范围内。
 - [x] 增加 Unit、Feature、MySQL/Redis integration 与 Worker 回归，补录完整来源，执行质量门和 Docker Runtime。
 - [x] 审核差异、提交推送、创建 Draft PR #13、等待 GitHub Actions run `33272462771` PASS 并同步真实证据；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #13：Redis publication 与 unique dispatch 整改
+
+- [x] 阅读 PR #13 Independent Review、Issue #12、必读规范、开发记录、现有 Queue 实现及 Laravel 13 PendingDispatch / Dispatcher / UniqueLock 本地源码。
+- [x] 精确转换 Predis 服务端 publication failure，并锁住 commit 后 HTTP 201 语义。
+- [x] 使用真实 PendingDispatch unique-lock 路径，并在 publication failure 后释放该 Job 的 lock。
+- [x] 添加真实 Redis duplicate enqueue 与 immediate recovery 回归测试，完成双环境质量门和 Docker Runtime。
+- [ ] 审核、提交、推送、等待 CI 并同步 Draft PR #13 证据；Independent Review 前保持 `INCOMPLETE`。

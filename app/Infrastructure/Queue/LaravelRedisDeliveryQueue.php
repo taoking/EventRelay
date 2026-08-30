@@ -7,23 +7,31 @@ namespace App\Infrastructure\Queue;
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Domain\Delivery\DeliveryId;
-use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Bus\UniqueLock;
+use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Foundation\Bus\PendingDispatch;
 use Illuminate\Support\Facades\Log;
 use Predis\Connection\ConnectionException;
 use Predis\Connection\Resource\Exception\StreamInitException;
+use Predis\Response\ServerException;
 use RedisException;
 
-final readonly class LaravelRedisDeliveryQueue implements DeliveryQueue
+final class LaravelRedisDeliveryQueue implements DeliveryQueue
 {
     public function __construct(
-        private Dispatcher $dispatcher,
+        private readonly Cache $cache,
     ) {}
 
     public function enqueue(DeliveryId $deliveryId): void
     {
+        $job = new ProcessDeliveryJob($deliveryId->toString());
+
         try {
-            $this->dispatcher->dispatch(new ProcessDeliveryJob($deliveryId->toString()));
-        } catch (ConnectionException|RedisException|StreamInitException $exception) {
+            $pendingDispatch = new PendingDispatch($job);
+            unset($pendingDispatch);
+        } catch (ConnectionException|RedisException|ServerException|StreamInitException $exception) {
+            $this->releaseUniqueLockAfterFailedPublication($job);
+
             Log::warning('Delivery queue publication failed.', [
                 'delivery_id' => $deliveryId->toString(),
                 'queue' => 'deliveries',
@@ -33,6 +41,15 @@ final readonly class LaravelRedisDeliveryQueue implements DeliveryQueue
             ]);
 
             throw new DeliveryQueueUnavailable($deliveryId, $exception);
+        }
+    }
+
+    private function releaseUniqueLockAfterFailedPublication(ProcessDeliveryJob $job): void
+    {
+        try {
+            (new UniqueLock($this->cache))->release($job);
+        } catch (ConnectionException|RedisException|ServerException|StreamInitException) {
+            // 原 publication failure 仍是对 Application 可诊断的错误；未知 cleanup 错误不得吞掉。
         }
     }
 }

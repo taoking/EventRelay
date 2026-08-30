@@ -126,4 +126,4 @@
 - [x] 收紧为 fail-closed global-unicast IP policy，并补齐 IPv4/IPv6 special-use、mixed DNS 与 IP literal 回归。
 - [x] 修复 IPv6 `CURLOPT_RESOLVE` 格式，抽出安全选项安装边界并保证配置失败不执行网络请求。
 - [x] 新增完整 `ProcessPendingDelivery` 两进程并发回归，并修正 Worker 完成日志。
-- [ ] 保存完整整改 Prompt，执行本机/Docker 质量门、Docker Security/并发 Runtime、提交推送、等待 CI 并同步 Draft PR 证据；Independent Review #2 前保持 `INCOMPLETE`。
+- [x] 保存整改任务追溯，执行本机/Docker 质量门与 Docker Security/并发 Runtime；提交、推送、等待 CI 并同步 Draft PR 证据；Independent Review #2 前保持 `INCOMPLETE`。

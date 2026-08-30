@@ -149,3 +149,10 @@
 - [x] 将 Delivery target URL 与 signing key ID 置于同一端点锁定快照窗口，并让 Worker 对实际 HTTP body 生成 v1 HMAC。
 - [x] 完成签名 retry、泄漏、MySQL rotation、CreateDelivery/rotation barrier 并发与 Docker 独立验签验证。
 - [x] 保存完整任务来源，审核、提交、推送、创建 Draft PR #19，并确认实现 HEAD 的 CI run `33321379921` 为 PASS；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #19：Independent Review #1 签名快照契约整改
+
+- [x] 复核 Draft PR #19、`feature/webhook-hmac-signing@6dd47e15`、CI run `33321629838` 与两项审查 blocker。
+- [x] 将 Delivery URL/签名 key 原子快照设为 `CreateDelivery` 的强制 Application contract，删除可选 unsigned fallback。
+- [x] 修复 `DeliveryRepository::createOrGet()` 的签名 key 无损持久化与 Endpoint 归属校验，并补充回归测试。
+- [ ] 保存完整整改 Prompt，执行双环境质量门、轻量 Docker signed smoke、推送/CI 与 PR 证据同步；Independent Review #2 前保持 `INCOMPLETE`。

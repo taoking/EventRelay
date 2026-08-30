@@ -7,6 +7,7 @@ namespace App\Infrastructure\Providers;
 use App\Application\Clock\Clock;
 use App\Application\Delivery\DeliveryExecutionRepository;
 use App\Application\Delivery\DeliveryRepository;
+use App\Application\Delivery\DeliverySnapshotCreator;
 use App\Application\Delivery\DueRetryFinder;
 use App\Application\Delivery\PendingDeliveryFinder;
 use App\Application\Delivery\StaleDeliveryFinder;
@@ -24,6 +25,7 @@ final class DeliveryServiceProvider extends ServiceProvider
     {
         $this->app->singleton(Clock::class, SystemClock::class);
         $this->app->bind(DeliveryRepository::class, EloquentDeliveryRepository::class);
+        $this->app->bind(DeliverySnapshotCreator::class, EloquentDeliveryRepository::class);
         $this->app->bind(DeliveryExecutionRepository::class, EloquentDeliveryExecutionRepository::class);
         $this->app->bind(PendingDeliveryFinder::class, EloquentPendingDeliveryFinder::class);
         $this->app->bind(DueRetryFinder::class, EloquentDueRetryFinder::class);

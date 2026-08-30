@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace App\Application\Delivery;
 
-use App\Application\Endpoint\EndpointNotFound;
-use App\Application\Endpoint\EndpointRepository;
 use App\Application\Event\EventNotFound;
 use App\Application\Event\EventRepository;
-use App\Domain\Delivery\Delivery;
 use App\Domain\Endpoint\EndpointId;
 
 final readonly class CreateDelivery
 {
     public function __construct(
         private EventRepository $events,
-        private EndpointRepository $endpoints,
-        private DeliveryRepository $deliveries,
+        private DeliverySnapshotCreator $snapshots,
     ) {}
 
     public function handle(string $eventId, string $endpointId): DeliveryData
@@ -27,14 +23,7 @@ final readonly class CreateDelivery
             throw new EventNotFound($eventId);
         }
 
-        $endpoint = $this->endpoints->find($endpointId);
-        if ($endpoint === null) {
-            throw new EndpointNotFound($endpointId);
-        }
-
-        $delivery = $this->deliveries instanceof DeliverySnapshotCreator
-            ? $this->deliveries->createOrGetSnapshot($event->id(), EndpointId::fromString($endpointId))
-            : $this->deliveries->createOrGet(Delivery::create($event->id(), $endpoint->id(), $endpoint->url()));
+        $delivery = $this->snapshots->createOrGetSnapshot($event->id(), EndpointId::fromString($endpointId));
 
         return DeliveryData::fromDomain($delivery);
     }

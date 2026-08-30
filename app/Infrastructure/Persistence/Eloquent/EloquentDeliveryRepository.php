@@ -24,12 +24,15 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
     public function createOrGet(Delivery $delivery): Delivery
     {
         return DB::transaction(function () use ($delivery): Delivery {
+            $internalEventId = $this->internalEventId($delivery->eventId());
+            $internalEndpointId = $this->internalEndpointId($delivery->endpointId());
+
             return $this->persistOrGet(
                 $delivery,
-                $this->internalEventId($delivery->eventId()),
-                $this->internalEndpointId($delivery->endpointId()),
+                $internalEventId,
+                $internalEndpointId,
                 $delivery->targetUrl(),
-                null,
+                $this->internalSigningSecretId($delivery->signingSecretId(), $internalEndpointId),
             );
         });
     }
@@ -190,6 +193,23 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
         }
 
         return $record->public_id;
+    }
+
+    private function internalSigningSecretId(?EndpointSigningSecretId $secretId, int $endpointId): ?int
+    {
+        if ($secretId === null) {
+            return null;
+        }
+
+        $record = EndpointSigningSecretRecord::query()
+            ->where('public_id', $secretId->toString())
+            ->first();
+
+        if ($record === null || $record->endpoint_id !== $endpointId) {
+            throw new LogicException('Delivery signing-secret reference is missing or belongs to another endpoint.');
+        }
+
+        return (int) $record->getKey();
     }
 
     private function isDeliveryPairUniqueViolation(QueryException $exception): bool

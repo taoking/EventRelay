@@ -148,4 +148,4 @@
 - [x] 建立版本化、加密落库的端点签名密钥，以及一次性 reveal / rotation API。
 - [x] 将 Delivery target URL 与 signing key ID 置于同一端点锁定快照窗口，并让 Worker 对实际 HTTP body 生成 v1 HMAC。
 - [x] 完成签名 retry、泄漏、MySQL rotation、CreateDelivery/rotation barrier 并发与 Docker 独立验签验证。
-- [ ] 保存完整任务来源，审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。
+- [x] 保存完整任务来源，审核、提交、推送、创建 Draft PR #19，并确认实现 HEAD 的 CI run `33321379921` 为 PASS；Independent Review 前保持 `INCOMPLETE`。

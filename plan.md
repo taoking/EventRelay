@@ -131,7 +131,7 @@
 ## Issue #16：Retry / Backoff / stale-processing recovery
 
 - [x] 确认 `main@b9eeaa5cd5993cccf144721c9fc91eec6adf6d10` 与 post-merge CI run `33308179391` 为 PASS，创建 `feature/delivery-retry-recovery` 并阅读 Issue、必读规范和现有实现。
-- [ ] 建立 Clock、RetryPolicy、状态机、Attempt abandoned 语义与持久化演进。
-- [ ] 实现 due retry/stale finder、原子 claim/finalize/recovery、delayed Redis queue 与两个 recovery command。
-- [ ] 添加 Unit、Feature、MySQL/Redis 并发与 HTTP retry 回归，并保存 Issue/Prompt 完整原文。
+- [x] 建立 Clock、RetryPolicy、状态机、Attempt abandoned 语义与持久化演进。
+- [x] 实现 due retry/stale finder、原子 claim/finalize/recovery、delayed Redis queue 与两个 recovery command。
+- [x] 添加 Unit、Feature、MySQL/Redis 并发与 HTTP retry 回归，并保存 Issue/Prompt 完整原文。
 - [ ] 执行双环境质量门与 Docker Runtime，审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。

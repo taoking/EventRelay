@@ -21,14 +21,14 @@ final readonly class DeliveryAttempt
         private ?int $durationMs,
         private DateTimeImmutable $startedAt,
         private ?DateTimeImmutable $finishedAt,
-    ) {}
-
-    public static function start(DeliveryId $deliveryId, int $number = 1, ?DateTimeInterface $startedAt = null): self
-    {
+    ) {
         if ($number < 1) {
             throw new \LogicException('Delivery attempt number must be at least one.');
         }
+    }
 
+    public static function start(DeliveryId $deliveryId, int $number = 1, ?DateTimeInterface $startedAt = null): self
+    {
         return new self(
             DeliveryAttemptId::generate(),
             $deliveryId,

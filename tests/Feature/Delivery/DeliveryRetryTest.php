@@ -7,6 +7,7 @@ namespace Tests\Feature\Delivery;
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryQueue;
+use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
@@ -17,6 +18,7 @@ use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Tests\Support\FrozenClock;
 use Tests\TestCase;
 
@@ -69,6 +71,9 @@ final class DeliveryRetryTest extends TestCase
             'status' => 'retry_scheduled',
             'next_attempt_at' => '2026-08-31 12:00:10',
         ]);
+        $this->getJson("/api/deliveries/{$deliveryId}")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'retry_scheduled');
         self::assertSame($deliveryId, $queue->scheduled[0]['id']);
         self::assertEquals(new DateTimeImmutable('2026-08-31T12:00:10+00:00'), $queue->scheduled[0]['at']);
 
@@ -113,6 +118,41 @@ final class DeliveryRetryTest extends TestCase
 
         $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'failed', 'next_attempt_at' => null]);
         self::assertSame(0, $queue->scheduled);
+    }
+
+    public function test_a_known_delayed_publication_failure_keeps_the_committed_retry_scheduled_delivery(): void
+    {
+        $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T12:00:00+00:00'));
+        $this->app->instance(Clock::class, $clock);
+        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
+        {
+            public function enqueue(DeliveryId $deliveryId): void {}
+
+            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
+            {
+                throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis is unavailable.'));
+            }
+        });
+        $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
+        {
+            public function resolve(string $url): WebhookTarget
+            {
+                return new WebhookTarget($url, 'receiver.example', 443, '1.1.1.1');
+            }
+        });
+        $this->app->instance(WebhookTransport::class, new class implements WebhookTransport
+        {
+            public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+            {
+                return new WebhookResponse(500, 1);
+            }
+        });
+        $deliveryId = $this->createDelivery();
+
+        app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($deliveryId));
+
+        $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'retry_scheduled']);
+        $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 1, 'status' => 'failed', 'response_status' => 500]);
     }
 
     private function bindExecutionDependencies(FrozenClock $clock, DeliveryQueue $queue, WebhookTransport $transport): void

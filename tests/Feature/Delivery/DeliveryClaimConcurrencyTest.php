@@ -7,6 +7,7 @@ namespace Tests\Feature\Delivery;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryExecutionRepository;
 use App\Domain\Delivery\DeliveryId;
+use DateTimeImmutable;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -36,7 +37,7 @@ final class DeliveryClaimConcurrencyTest extends TestCase
             fwrite($child, "ready\n");
             fgets($child);
 
-            $claimed = app(DeliveryExecutionRepository::class)->claim(DeliveryId::fromString($deliveryId));
+            $claimed = app(DeliveryExecutionRepository::class)->claim(DeliveryId::fromString($deliveryId), new DateTimeImmutable);
             fwrite($child, $claimed === null ? "noop\n" : "claimed\n");
             fclose($child);
             exit(0);
@@ -47,7 +48,7 @@ final class DeliveryClaimConcurrencyTest extends TestCase
         try {
             self::assertSame("ready\n", fgets($parent));
             fwrite($parent, "go\n");
-            $parentClaim = app(DeliveryExecutionRepository::class)->claim(DeliveryId::fromString($deliveryId));
+            $parentClaim = app(DeliveryExecutionRepository::class)->claim(DeliveryId::fromString($deliveryId), new DateTimeImmutable);
             $childResult = fgets($parent);
             pcntl_waitpid($pid, $status);
 

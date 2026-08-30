@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Queue;
 
+use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Application\Delivery\EnqueuePendingDeliveries;
+use App\Application\Delivery\WebhookRequest;
+use App\Application\Delivery\WebhookResponse;
+use App\Application\Delivery\WebhookTarget;
+use App\Application\Delivery\WebhookTargetResolver;
+use App\Application\Delivery\WebhookTransport;
 use App\Domain\Delivery\DeliveryId;
 use App\Infrastructure\Queue\LaravelRedisDeliveryQueue;
 use App\Infrastructure\Queue\ProcessDeliveryJob;
@@ -24,6 +30,7 @@ use Predis\Connection\ConnectionException;
 use Predis\Connection\Resource\Exception\StreamInitException;
 use Predis\Response\ServerException;
 use RedisException;
+use Tests\Support\FrozenClock;
 use Tests\TestCase;
 
 final class DeliveryQueueRedisIntegrationTest extends TestCase
@@ -65,6 +72,11 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
                         ->exists();
 
                     $this->queue->enqueue($deliveryId);
+                }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
+                {
+                    $this->queue->schedule($deliveryId, $availableAt);
                 }
             },
         );
@@ -249,6 +261,55 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         }
     }
 
+    public function test_a_real_worker_can_schedule_a_retry_for_its_own_delivery_after_the_unique_lock_is_released(): void
+    {
+        $this->requireMySqlAndRedis();
+        $this->clearDeliveriesQueue();
+        $clock = new FrozenClock(new \DateTimeImmutable('2026-08-31T12:00:00+00:00'));
+        $this->app->instance(Clock::class, $clock);
+        $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
+        {
+            public function resolve(string $url): WebhookTarget
+            {
+                return new WebhookTarget($url, 'receiver.example', 443, '1.1.1.1');
+            }
+        });
+        $this->app->instance(WebhookTransport::class, new class implements WebhookTransport
+        {
+            public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+            {
+                return new WebhookResponse(500, 1);
+            }
+        });
+        $endpointId = $this->createEndpoint('Retry unique lifecycle endpoint');
+        $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
+        $deliveryId = DeliveryId::fromString(app(CreateDelivery::class)->handle($eventId, $endpointId)->id);
+
+        try {
+            app(DeliveryQueue::class)->enqueue($deliveryId);
+            self::assertSame(1, $this->queueLength());
+            self::assertSame(0, Artisan::call('queue:work', [
+                'connection' => 'redis',
+                '--queue' => 'deliveries',
+                '--once' => true,
+                '--tries' => 1,
+            ]));
+
+            $this->assertDatabaseHas('deliveries', [
+                'public_id' => $deliveryId->toString(),
+                'status' => 'retry_scheduled',
+            ]);
+            self::assertSame(1, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
+            self::assertStringContainsString(
+                $deliveryId->toString(),
+                (string) Redis::connection()->zRange('queues:deliveries:delayed', 0, 0)[0],
+            );
+        } finally {
+            $this->releaseUniqueLock($deliveryId);
+            $this->clearDeliveriesQueue();
+        }
+    }
+
     private function replaceDispatcherWithServerFailure(): Dispatcher
     {
         $originalDispatcher = app(Dispatcher::class);
@@ -301,7 +362,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
     private function clearDeliveriesQueue(): void
     {
-        Redis::connection()->del('queues:deliveries');
+        Redis::connection()->del('queues:deliveries', 'queues:deliveries:delayed', 'queues:deliveries:reserved');
     }
 
     private function queueLength(): int

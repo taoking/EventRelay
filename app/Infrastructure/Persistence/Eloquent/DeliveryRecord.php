@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $endpoint_id
  * @property string|null $target_url
  * @property string $status
+ * @property \DateTimeInterface|null $next_attempt_at
  * @property \DateTimeInterface|null $created_at
  * @property \DateTimeInterface|null $updated_at
  */
@@ -28,6 +29,7 @@ final class DeliveryRecord extends Model
         'endpoint_id',
         'target_url',
         'status',
+        'next_attempt_at',
         'created_at',
         'updated_at',
     ];
@@ -40,6 +42,7 @@ final class DeliveryRecord extends Model
         return [
             'created_at' => 'immutable_datetime',
             'updated_at' => 'immutable_datetime',
+            'next_attempt_at' => 'immutable_datetime',
         ];
     }
 }

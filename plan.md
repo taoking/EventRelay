@@ -127,3 +127,17 @@
 - [x] 修复 IPv6 `CURLOPT_RESOLVE` 格式，抽出安全选项安装边界并保证配置失败不执行网络请求。
 - [x] 新增完整 `ProcessPendingDelivery` 两进程并发回归，并修正 Worker 完成日志。
 - [x] 保存整改任务追溯，执行本机/Docker 质量门与 Docker Security/并发 Runtime；提交、推送、等待 CI 并同步 Draft PR 证据；Independent Review #2 前保持 `INCOMPLETE`。
+
+## Issue #16：Retry / Backoff / stale-processing recovery
+
+- [x] 确认 `main@b9eeaa5cd5993cccf144721c9fc91eec6adf6d10` 与 post-merge CI run `33308179391` 为 PASS，创建 `feature/delivery-retry-recovery` 并阅读 Issue、必读规范和现有实现。
+- [x] 建立 Clock、RetryPolicy、状态机、Attempt abandoned 语义与持久化演进。
+- [x] 实现 due retry/stale finder、原子 claim/finalize/recovery、delayed Redis queue 与两个 recovery command。
+- [x] 添加 Unit、Feature、MySQL/Redis 并发与 HTTP retry 回归，并保存 Issue/Prompt 完整原文。
+- [x] 执行双环境质量门与 Docker Runtime，审核、提交、推送、创建 Draft PR #17，并确认实现/测试 HEAD `abb3dd4` 的 GitHub Actions run `33315933453` 为 PASS；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #17：Independent Review #1 整改
+
+- [x] 阅读 Independent Review #1、Issue #16、必读规范、开发记录及当前 Delivery retry/stale 实现；确认仅处理真实 stale-late-finalize 并发证据与两项 Docker Runtime 缺口。
+- [x] 新增 MySQL 双进程、socket barrier、真实 `ProcessPendingDelivery → transport → finalize` 对真实 stale recovery 的竞争回归。
+- [x] 物理停止 Docker Redis，完成 delayed publication-gap 的 durable state 与 due-retry recovery Runtime；执行本机/Docker 质量门，待推送、最终 CI 与 Draft PR 证据同步。

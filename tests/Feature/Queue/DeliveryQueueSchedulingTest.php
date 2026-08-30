@@ -137,6 +137,11 @@ final class DeliveryQueueSchedulingTest extends TestCase
                 {
                     throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis is unavailable.'));
                 }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
+                {
+                    throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis is unavailable.'));
+                }
             },
         );
 
@@ -157,6 +162,11 @@ final class DeliveryQueueSchedulingTest extends TestCase
             new class implements DeliveryQueue
             {
                 public function enqueue(DeliveryId $deliveryId): void
+                {
+                    throw new RuntimeException('Unexpected queue programming failure.');
+                }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
                 {
                     throw new RuntimeException('Unexpected queue programming failure.');
                 }
@@ -195,6 +205,8 @@ final class DeliveryQueueSchedulingTest extends TestCase
                 {
                     $this->queued[] = $deliveryId->toString();
                 }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
             },
         );
     }

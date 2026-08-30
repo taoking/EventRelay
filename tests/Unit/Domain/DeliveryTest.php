@@ -25,6 +25,7 @@ final class DeliveryTest extends TestCase
             $delivery->id()->toString(),
         );
         self::assertSame(DeliveryStatus::Pending, $delivery->status());
+        self::assertNull($delivery->nextAttemptAt());
         self::assertSame('https://receiver.example/webhook', $delivery->targetUrl());
         self::assertEquals($delivery->createdAt(), $delivery->updatedAt());
     }
@@ -93,5 +94,20 @@ final class DeliveryTest extends TestCase
                 self::addToAssertionCount(1);
             }
         }
+    }
+
+    #[Test]
+    public function it_requires_next_attempt_at_only_for_a_retry_scheduled_delivery(): void
+    {
+        $now = new DateTimeImmutable('2026-08-31T12:00:00+00:00');
+        $delivery = Delivery::create(EventId::generate(), EndpointId::generate(), 'https://receiver.example/webhook');
+        $retry = $delivery->claim($now)->scheduleRetry($now->modify('+10 seconds'), $now);
+
+        self::assertSame(DeliveryStatus::RetryScheduled, $retry->status());
+        self::assertEquals($now->modify('+10 seconds'), $retry->nextAttemptAt());
+        self::assertSame(DeliveryStatus::Processing, $retry->claim($now->modify('+10 seconds'))->status());
+
+        $this->expectException(\LogicException::class);
+        $retry->claim($now);
     }
 }

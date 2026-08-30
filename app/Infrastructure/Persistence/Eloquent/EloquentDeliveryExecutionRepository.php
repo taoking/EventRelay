@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\Persistence\Eloquent;
 
 use App\Application\Delivery\ClaimedDelivery;
+use App\Application\Delivery\DeliveryExecutionConflict;
 use App\Application\Delivery\DeliveryExecutionRepository;
+use App\Application\Delivery\DeliveryRetryPolicy;
+use App\Application\Delivery\StaleRecoveryResult;
 use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
 use App\Domain\Delivery\DeliveryStatus;
@@ -15,28 +18,53 @@ use App\Domain\DeliveryAttempt\DeliveryAttemptStatus;
 use App\Domain\DeliveryAttempt\DeliveryFailureType;
 use App\Domain\Endpoint\EndpointId;
 use App\Domain\Event\EventId;
+use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
 final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepository
 {
-    public function claim(DeliveryId $deliveryId): ?ClaimedDelivery
+    public function claim(DeliveryId $deliveryId, DateTimeImmutable $now): ?ClaimedDelivery
     {
-        return DB::transaction(function () use ($deliveryId): ?ClaimedDelivery {
-            $claimed = DeliveryRecord::query()
+        return DB::transaction(function () use ($deliveryId, $now): ?ClaimedDelivery {
+            $record = DeliveryRecord::query()
                 ->where('public_id', $deliveryId->toString())
-                ->where('status', DeliveryStatus::Pending->value)
-                ->update([
-                    'status' => DeliveryStatus::Processing->value,
-                    'updated_at' => now(),
-                ]);
+                ->lockForUpdate()
+                ->first();
 
-            if ($claimed !== 1) {
+            if ($record === null) {
                 return null;
             }
 
-            $record = DeliveryRecord::query()->where('public_id', $deliveryId->toString())->firstOrFail();
-            $attempt = DeliveryAttempt::start($deliveryId);
+            $status = DeliveryStatus::from($record->status);
+            $canClaim = $status === DeliveryStatus::Pending
+                || ($status === DeliveryStatus::RetryScheduled
+                    && $record->next_attempt_at !== null
+                    && $record->next_attempt_at <= $now);
+
+            if (! $canClaim) {
+                return null;
+            }
+
+            $latestAttempt = DeliveryAttemptRecord::query()
+                ->where('delivery_id', $record->getKey())
+                ->orderByDesc('attempt_number')
+                ->lockForUpdate()
+                ->first();
+            $attemptNumber = $latestAttempt === null ? 1 : $latestAttempt->attempt_number + 1;
+
+            if ($attemptNumber > DeliveryRetryPolicy::MAX_ATTEMPTS) {
+                throw new LogicException('Delivery attempt budget cannot exceed its maximum.');
+            }
+
+            $record->fill([
+                'status' => DeliveryStatus::Processing->value,
+                'next_attempt_at' => null,
+                'updated_at' => $now,
+            ]);
+            $record->save();
+
+            $attempt = DeliveryAttempt::start($deliveryId, $attemptNumber, $now);
             $attemptRecord = new DeliveryAttemptRecord;
             $attemptRecord->fill([
                 'public_id' => $attempt->id()->toString(),
@@ -54,9 +82,24 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
     public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void
     {
         DB::transaction(function () use ($delivery, $attempt): void {
+            $deliveryRecord = DeliveryRecord::query()
+                ->where('public_id', $delivery->id()->toString())
+                ->lockForUpdate()
+                ->first();
+
+            if ($deliveryRecord === null || $deliveryRecord->status !== DeliveryStatus::Processing->value) {
+                throw new DeliveryExecutionConflict('A delivery can only be finalized while processing.');
+            }
+
             $attemptRecord = DeliveryAttemptRecord::query()
                 ->where('public_id', $attempt->id()->toString())
-                ->firstOrFail();
+                ->lockForUpdate()
+                ->first();
+
+            if ($attemptRecord === null || $attemptRecord->status !== DeliveryAttemptStatus::Started->value) {
+                throw new DeliveryExecutionConflict('A delivery attempt can only be finalized while started.');
+            }
+
             $attemptRecord->fill([
                 'status' => $attempt->status()->value,
                 'response_status' => $attempt->responseStatus(),
@@ -67,17 +110,67 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
             ]);
             $attemptRecord->save();
 
-            $finalized = DeliveryRecord::query()
-                ->where('public_id', $delivery->id()->toString())
-                ->where('status', DeliveryStatus::Processing->value)
-                ->update([
-                    'status' => $delivery->status()->value,
-                    'updated_at' => $delivery->updatedAt(),
-                ]);
+            $deliveryRecord->fill([
+                'status' => $delivery->status()->value,
+                'next_attempt_at' => $delivery->nextAttemptAt(),
+                'updated_at' => $delivery->updatedAt(),
+            ]);
+            $deliveryRecord->save();
+        });
+    }
 
-            if ($finalized !== 1) {
-                throw new LogicException('A claimed delivery must still be processing when finalized.');
+    public function recoverStale(
+        DeliveryId $deliveryId,
+        DateTimeImmutable $cutoff,
+        DateTimeImmutable $now,
+        DeliveryRetryPolicy $policy,
+    ): ?StaleRecoveryResult {
+        return DB::transaction(function () use ($deliveryId, $cutoff, $now, $policy): ?StaleRecoveryResult {
+            $deliveryRecord = DeliveryRecord::query()
+                ->where('public_id', $deliveryId->toString())
+                ->lockForUpdate()
+                ->first();
+
+            if ($deliveryRecord === null || $deliveryRecord->status !== DeliveryStatus::Processing->value) {
+                return null;
             }
+
+            $attemptRecord = DeliveryAttemptRecord::query()
+                ->where('delivery_id', $deliveryRecord->getKey())
+                ->orderByDesc('attempt_number')
+                ->lockForUpdate()
+                ->first();
+
+            if ($attemptRecord === null
+                || $attemptRecord->status !== DeliveryAttemptStatus::Started->value
+                || $attemptRecord->started_at > $cutoff) {
+                return null;
+            }
+
+            $delivery = $this->delivery($deliveryRecord);
+            $attempt = $this->attempt($attemptRecord, $deliveryId);
+            $abandoned = $attempt->abandon('Delivery processing exceeded the stale threshold.', $now);
+            $decision = $policy->forStaleProcessing($attempt->number());
+            $nextAttemptAt = $decision->shouldRetry ? $now->modify("+{$decision->delaySeconds} seconds") : null;
+            $recoveredDelivery = $nextAttemptAt === null
+                ? $delivery->fail($now)
+                : $delivery->scheduleRetry($nextAttemptAt, $now);
+
+            $attemptRecord->fill([
+                'status' => $abandoned->status()->value,
+                'failure_type' => $abandoned->failureType()?->value,
+                'failure_message' => $abandoned->failureMessage(),
+                'finished_at' => $abandoned->finishedAt(),
+            ]);
+            $attemptRecord->save();
+            $deliveryRecord->fill([
+                'status' => $recoveredDelivery->status()->value,
+                'next_attempt_at' => $recoveredDelivery->nextAttemptAt(),
+                'updated_at' => $recoveredDelivery->updatedAt(),
+            ]);
+            $deliveryRecord->save();
+
+            return new StaleRecoveryResult($recoveredDelivery, $abandoned, $nextAttemptAt);
         });
     }
 
@@ -116,6 +209,7 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,
+            $record->next_attempt_at,
         );
     }
 

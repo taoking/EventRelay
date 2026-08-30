@@ -77,7 +77,7 @@ final class ProcessPendingDeliveryTest extends TestCase
         self::assertSame(1, DB::table('delivery_attempts')->count());
     }
 
-    public function test_non_2xx_and_known_transport_failures_are_terminal_business_failures_without_retry(): void
+    public function test_retryable_http_and_network_failures_are_recorded_and_schedule_a_business_retry(): void
     {
         $httpDelivery = $this->createDelivery('https://receiver.example/http-status');
         $networkDelivery = $this->createDelivery('https://receiver.example/network-error');
@@ -103,8 +103,10 @@ final class ProcessPendingDeliveryTest extends TestCase
         app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($httpDelivery));
         app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($networkDelivery));
 
-        $this->assertDatabaseHas('deliveries', ['public_id' => $httpDelivery, 'status' => 'failed']);
-        $this->assertDatabaseHas('deliveries', ['public_id' => $networkDelivery, 'status' => 'failed']);
+        $this->assertDatabaseHas('deliveries', ['public_id' => $httpDelivery, 'status' => 'retry_scheduled']);
+        $this->assertDatabaseHas('deliveries', ['public_id' => $networkDelivery, 'status' => 'retry_scheduled']);
+        self::assertNotNull(DB::table('deliveries')->where('public_id', $httpDelivery)->value('next_attempt_at'));
+        self::assertNotNull(DB::table('deliveries')->where('public_id', $networkDelivery)->value('next_attempt_at'));
         $this->assertDatabaseHas('delivery_attempts', [
             'failure_type' => 'http_status',
             'response_status' => 500,

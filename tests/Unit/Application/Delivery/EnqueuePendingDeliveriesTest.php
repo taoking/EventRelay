@@ -61,6 +61,8 @@ final class EnqueuePendingDeliveriesTest extends TestCase
 
                     $this->enqueued[] = $deliveryId->toString();
                 }
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
             },
         )->handle(3);
 
@@ -82,6 +84,8 @@ final class EnqueuePendingDeliveriesTest extends TestCase
             new class implements DeliveryQueue
             {
                 public function enqueue(DeliveryId $deliveryId): void {}
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
             },
         );
 

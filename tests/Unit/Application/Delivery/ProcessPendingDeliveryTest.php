@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Application\Delivery;
 
+use App\Application\Clock\Clock;
 use App\Application\Delivery\ClaimedDelivery;
 use App\Application\Delivery\DeliveryExecutionRepository;
 use App\Application\Delivery\DeliveryNotFound;
+use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryRepository;
+use App\Application\Delivery\DeliveryRetryPolicy;
 use App\Application\Delivery\ProcessPendingDelivery;
+use App\Application\Delivery\StaleRecoveryResult;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
 use App\Application\Delivery\WebhookTarget;
@@ -57,12 +61,17 @@ final class ProcessPendingDeliveryTest extends TestCase
             },
             new class implements DeliveryExecutionRepository
             {
-                public function claim(DeliveryId $deliveryId): ?ClaimedDelivery
+                public function claim(DeliveryId $deliveryId, \DateTimeImmutable $now): ?ClaimedDelivery
                 {
                     return null;
                 }
 
                 public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void {}
+
+                public function recoverStale(DeliveryId $deliveryId, \DateTimeImmutable $cutoff, \DateTimeImmutable $now, DeliveryRetryPolicy $policy): ?StaleRecoveryResult
+                {
+                    return null;
+                }
 
                 public function attempts(DeliveryId $deliveryId): array
                 {
@@ -98,6 +107,20 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
                 {
                     throw new \LogicException('not called');
+                }
+            },
+            new DeliveryRetryPolicy,
+            new class implements DeliveryQueue
+            {
+                public function enqueue(DeliveryId $deliveryId): void {}
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
+            },
+            new class implements Clock
+            {
+                public function now(): \DateTimeImmutable
+                {
+                    return new \DateTimeImmutable('2026-08-31T12:00:00+00:00');
                 }
             },
         ))->handle($delivery->id());
@@ -127,12 +150,17 @@ final class ProcessPendingDeliveryTest extends TestCase
             },
             new class implements DeliveryExecutionRepository
             {
-                public function claim(DeliveryId $deliveryId): ?ClaimedDelivery
+                public function claim(DeliveryId $deliveryId, \DateTimeImmutable $now): ?ClaimedDelivery
                 {
                     return null;
                 }
 
                 public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void {}
+
+                public function recoverStale(DeliveryId $deliveryId, \DateTimeImmutable $cutoff, \DateTimeImmutable $now, DeliveryRetryPolicy $policy): ?StaleRecoveryResult
+                {
+                    return null;
+                }
 
                 public function attempts(DeliveryId $deliveryId): array
                 {
@@ -168,6 +196,20 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
                 {
                     throw new \LogicException('not called');
+                }
+            },
+            new DeliveryRetryPolicy,
+            new class implements DeliveryQueue
+            {
+                public function enqueue(DeliveryId $deliveryId): void {}
+
+                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
+            },
+            new class implements Clock
+            {
+                public function now(): \DateTimeImmutable
+                {
+                    return new \DateTimeImmutable('2026-08-31T12:00:00+00:00');
                 }
             },
         );

@@ -17,9 +17,14 @@ final readonly class Delivery
         private EndpointId $endpointId,
         private string $targetUrl,
         private DeliveryStatus $status,
+        private ?DateTimeImmutable $nextAttemptAt,
         private DateTimeImmutable $createdAt,
         private DateTimeImmutable $updatedAt,
-    ) {}
+    ) {
+        if (($status === DeliveryStatus::RetryScheduled) !== ($nextAttemptAt !== null)) {
+            throw new \LogicException('Only retry_scheduled deliveries may have next_attempt_at.');
+        }
+    }
 
     public static function create(EventId $eventId, EndpointId $endpointId, string $targetUrl): self
     {
@@ -31,6 +36,7 @@ final readonly class Delivery
             $endpointId,
             $targetUrl,
             DeliveryStatus::Pending,
+            null,
             $now,
             $now,
         );
@@ -44,6 +50,7 @@ final readonly class Delivery
         DeliveryStatus $status,
         DateTimeInterface $createdAt,
         DateTimeInterface $updatedAt,
+        ?DateTimeInterface $nextAttemptAt = null,
     ): self {
         return new self(
             $id,
@@ -51,6 +58,7 @@ final readonly class Delivery
             $endpointId,
             $targetUrl,
             $status,
+            $nextAttemptAt === null ? null : DateTimeImmutable::createFromInterface($nextAttemptAt),
             DateTimeImmutable::createFromInterface($createdAt),
             DateTimeImmutable::createFromInterface($updatedAt),
         );
@@ -81,6 +89,11 @@ final readonly class Delivery
         return $this->status;
     }
 
+    public function nextAttemptAt(): ?DateTimeImmutable
+    {
+        return $this->nextAttemptAt;
+    }
+
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
@@ -91,26 +104,38 @@ final readonly class Delivery
         return $this->updatedAt;
     }
 
-    public function claim(): self
+    public function claim(?DateTimeInterface $at = null): self
     {
-        return $this->transitionTo(DeliveryStatus::Processing);
+        if ($this->status === DeliveryStatus::RetryScheduled
+            && $this->nextAttemptAt !== null
+            && $this->nextAttemptAt > self::immutable($at)) {
+            throw new \LogicException('A retry_scheduled delivery cannot be claimed before next_attempt_at.');
+        }
+
+        return $this->transitionTo(DeliveryStatus::Processing, null, $at);
     }
 
-    public function succeed(): self
+    public function succeed(?DateTimeInterface $at = null): self
     {
-        return $this->transitionTo(DeliveryStatus::Succeeded);
+        return $this->transitionTo(DeliveryStatus::Succeeded, null, $at);
     }
 
-    public function fail(): self
+    public function fail(?DateTimeInterface $at = null): self
     {
-        return $this->transitionTo(DeliveryStatus::Failed);
+        return $this->transitionTo(DeliveryStatus::Failed, null, $at);
     }
 
-    private function transitionTo(DeliveryStatus $next): self
+    public function scheduleRetry(DateTimeInterface $nextAttemptAt, ?DateTimeInterface $at = null): self
+    {
+        return $this->transitionTo(DeliveryStatus::RetryScheduled, $nextAttemptAt, $at);
+    }
+
+    private function transitionTo(DeliveryStatus $next, ?DateTimeInterface $nextAttemptAt, ?DateTimeInterface $at): self
     {
         $allowed = match ($this->status) {
             DeliveryStatus::Pending => $next === DeliveryStatus::Processing,
-            DeliveryStatus::Processing => in_array($next, [DeliveryStatus::Succeeded, DeliveryStatus::Failed], true),
+            DeliveryStatus::RetryScheduled => $next === DeliveryStatus::Processing,
+            DeliveryStatus::Processing => in_array($next, [DeliveryStatus::Succeeded, DeliveryStatus::Failed, DeliveryStatus::RetryScheduled], true),
             DeliveryStatus::Succeeded, DeliveryStatus::Failed => false,
         };
 
@@ -124,8 +149,14 @@ final readonly class Delivery
             $this->endpointId,
             $this->targetUrl,
             $next,
+            $nextAttemptAt === null ? null : DateTimeImmutable::createFromInterface($nextAttemptAt),
             $this->createdAt,
-            new DateTimeImmutable,
+            self::immutable($at),
         );
+    }
+
+    private static function immutable(?DateTimeInterface $at): DateTimeImmutable
+    {
+        return $at === null ? new DateTimeImmutable : DateTimeImmutable::createFromInterface($at);
     }
 }

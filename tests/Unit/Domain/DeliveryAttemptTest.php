@@ -44,4 +44,19 @@ final class DeliveryAttemptTest extends TestCase
         self::assertSame(500, mb_strlen((string) $failed->failureMessage()));
         self::assertSame(23, $failed->durationMs());
     }
+
+    #[Test]
+    public function it_supports_later_attempt_numbers_and_records_stale_processing_as_unknown_outcome(): void
+    {
+        $attempt = DeliveryAttempt::start(DeliveryId::generate(), 2);
+        $abandoned = $attempt->abandon('Worker did not finalize in time.');
+
+        self::assertSame(2, $abandoned->number());
+        self::assertSame(DeliveryAttemptStatus::Abandoned, $abandoned->status());
+        self::assertSame(DeliveryFailureType::StaleProcessing, $abandoned->failureType());
+        self::assertNull($abandoned->durationMs());
+
+        $this->expectException(\LogicException::class);
+        DeliveryAttempt::start(DeliveryId::generate(), 0);
+    }
 }

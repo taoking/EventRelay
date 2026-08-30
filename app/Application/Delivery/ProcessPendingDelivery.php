@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Application\Delivery;
 
+use App\Application\Clock\Clock;
 use App\Application\Event\EventRepository;
+use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
+use App\Domain\DeliveryAttempt\DeliveryAttempt;
 use App\Domain\DeliveryAttempt\DeliveryFailureType;
 
 final readonly class ProcessPendingDelivery
@@ -16,6 +19,9 @@ final readonly class ProcessPendingDelivery
         private EventRepository $events,
         private WebhookTargetResolver $targets,
         private WebhookTransport $transport,
+        private DeliveryRetryPolicy $retryPolicy,
+        private DeliveryQueue $queue,
+        private Clock $clock,
     ) {}
 
     public function handle(DeliveryId $deliveryId): void
@@ -24,7 +30,7 @@ final readonly class ProcessPendingDelivery
             throw new DeliveryNotFound($deliveryId->toString());
         }
 
-        $claimed = $this->execution->claim($deliveryId);
+        $claimed = $this->execution->claim($deliveryId, $this->clock->now());
 
         if ($claimed === null) {
             return;
@@ -58,33 +64,64 @@ final readonly class ProcessPendingDelivery
                 $request,
             );
         } catch (UnsafeWebhookTarget $exception) {
-            $this->execution->finalize(
-                $claimed->delivery->fail(),
-                $claimed->attempt->fail(DeliveryFailureType::UnsafeTarget, $exception->getMessage(), null, 0),
-            );
+            $this->finalizeKnownFailure($claimed->delivery->id(), $claimed->delivery, $claimed->attempt, DeliveryFailureType::UnsafeTarget, $exception->getMessage(), null, 0);
 
             return;
         } catch (WebhookTransportFailure $exception) {
-            $this->execution->finalize(
-                $claimed->delivery->fail(),
-                $claimed->attempt->fail($exception->type, $exception->getMessage(), null, $exception->durationMs),
-            );
+            $this->finalizeKnownFailure($claimed->delivery->id(), $claimed->delivery, $claimed->attempt, $exception->type, $exception->getMessage(), null, $exception->durationMs);
 
             return;
         }
 
         if ($response->statusCode >= 200 && $response->statusCode <= 299) {
             $this->execution->finalize(
-                $claimed->delivery->succeed(),
-                $claimed->attempt->succeed($response->statusCode, $response->durationMs),
+                $claimed->delivery->succeed($this->clock->now()),
+                $claimed->attempt->succeed($response->statusCode, $response->durationMs, $this->clock->now()),
             );
 
             return;
         }
 
-        $this->execution->finalize(
-            $claimed->delivery->fail(),
-            $claimed->attempt->fail(DeliveryFailureType::HttpStatus, "HTTP {$response->statusCode}", $response->statusCode, $response->durationMs),
+        $this->finalizeKnownFailure(
+            $claimed->delivery->id(),
+            $claimed->delivery,
+            $claimed->attempt,
+            DeliveryFailureType::HttpStatus,
+            "HTTP {$response->statusCode}",
+            $response->statusCode,
+            $response->durationMs,
         );
+    }
+
+    private function finalizeKnownFailure(
+        DeliveryId $deliveryId,
+        Delivery $delivery,
+        DeliveryAttempt $attempt,
+        DeliveryFailureType $type,
+        string $message,
+        ?int $responseStatus,
+        int $durationMs,
+    ): void {
+        $now = $this->clock->now();
+        $decision = $this->retryPolicy->forKnownFailure($attempt->number(), $type, $responseStatus);
+        $availableAt = $decision->shouldRetry ? $now->modify("+{$decision->delaySeconds} seconds") : null;
+        $finalDelivery = $availableAt === null
+            ? $delivery->fail($now)
+            : $delivery->scheduleRetry($availableAt, $now);
+
+        $this->execution->finalize(
+            $finalDelivery,
+            $attempt->fail($type, $message, $responseStatus, $durationMs, $now),
+        );
+
+        if ($availableAt === null) {
+            return;
+        }
+
+        try {
+            $this->queue->schedule($deliveryId, $availableAt);
+        } catch (DeliveryQueueUnavailable) {
+            // Redis publication 属于 commit 之后的已知基础设施故障；由 due-retry recovery 补发。
+        }
     }
 }

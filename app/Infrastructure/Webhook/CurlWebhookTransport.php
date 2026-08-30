@@ -13,9 +13,13 @@ use App\Domain\DeliveryAttempt\DeliveryFailureType;
 
 final class CurlWebhookTransport implements WebhookTransport
 {
+    public function __construct(
+        private readonly CurlTransportDriver $curl,
+    ) {}
+
     public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
     {
-        $handle = curl_init($target->url);
+        $handle = $this->curl->init($target->url);
 
         if ($handle === false) {
             throw new \LogicException('Unable to initialise webhook cURL transport.');
@@ -26,7 +30,7 @@ final class CurlWebhookTransport implements WebhookTransport
             $headers[] = "{$name}: {$value}";
         }
 
-        curl_setopt_array($handle, [
+        $options = [
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $request->body,
             CURLOPT_HTTPHEADER => $headers,
@@ -37,16 +41,23 @@ final class CurlWebhookTransport implements WebhookTransport
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_PROXY => '',
             CURLOPT_NOPROXY => '*',
-            CURLOPT_RESOLVE => ["{$target->host}:{$target->port}:{$target->ip}"],
             CURLOPT_WRITEFUNCTION => static fn ($handle, string $data): int => strlen($data),
-        ]);
+        ];
+
+        if (! $target->isIpLiteral) {
+            $options[CURLOPT_RESOLVE] = [self::resolveEntry($target)];
+        }
+
+        if (! $this->curl->setOptions($handle, $options)) {
+            throw new \LogicException('Unable to install secure webhook cURL options.');
+        }
 
         $startedAt = hrtime(true);
-        $result = curl_exec($handle);
+        $result = $this->curl->execute($handle);
         $durationMs = (int) floor((hrtime(true) - $startedAt) / 1_000_000);
-        $errno = curl_errno($handle);
-        $error = curl_error($handle);
-        $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        $errno = $this->curl->errno($handle);
+        $error = $this->curl->error($handle);
+        $status = $this->curl->responseCode($handle);
 
         if ($result === false) {
             throw new WebhookTransportFailure(
@@ -57,5 +68,14 @@ final class CurlWebhookTransport implements WebhookTransport
         }
 
         return new WebhookResponse($status, $durationMs);
+    }
+
+    public static function resolveEntry(WebhookTarget $target): string
+    {
+        $address = filter_var($target->ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false
+            ? $target->ip
+            : "[{$target->ip}]";
+
+        return "{$target->host}:{$target->port}:{$address}";
     }
 }

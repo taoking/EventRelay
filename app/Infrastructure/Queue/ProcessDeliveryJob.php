@@ -42,9 +42,8 @@ final class ProcessDeliveryJob implements ShouldBeUnique, ShouldQueue
         $deliveryId = DeliveryId::fromString($this->deliveryId);
         $processor->handle($deliveryId);
 
-        Log::info('Pending delivery entered worker.', [
+        Log::info('Delivery worker processing finished.', [
             'delivery_id' => $this->deliveryId,
-            'status' => 'pending',
             'worker' => 'redis',
         ]);
     }

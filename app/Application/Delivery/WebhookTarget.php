@@ -11,5 +11,6 @@ final readonly class WebhookTarget
         public string $host,
         public int $port,
         public string $ip,
+        public bool $isIpLiteral = false,
     ) {}
 }

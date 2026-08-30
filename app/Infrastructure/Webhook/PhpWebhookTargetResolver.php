@@ -30,7 +30,8 @@ final class PhpWebhookTargetResolver implements WebhookTargetResolver
 
         $host = trim($host, '[]');
 
-        $ips = filter_var($host, FILTER_VALIDATE_IP) === false ? $this->dns->resolve($host) : [$host];
+        $isIpLiteral = filter_var($host, FILTER_VALIDATE_IP) !== false;
+        $ips = $isIpLiteral ? [$host] : $this->dns->resolve($host);
 
         if ($ips === [] || array_filter($ips, fn (string $ip): bool => ! $this->isPublicIp($ip)) !== []) {
             throw new UnsafeWebhookTarget('Target resolved to an unsafe address.');
@@ -38,7 +39,13 @@ final class PhpWebhookTargetResolver implements WebhookTargetResolver
 
         sort($ips, SORT_STRING);
 
-        return new WebhookTarget($targetUrl, $host, isset($parts['port']) ? (int) $parts['port'] : (strtolower($scheme) === 'https' ? 443 : 80), $ips[0]);
+        return new WebhookTarget(
+            $targetUrl,
+            $host,
+            isset($parts['port']) ? (int) $parts['port'] : (strtolower($scheme) === 'https' ? 443 : 80),
+            $ips[0],
+            $isIpLiteral,
+        );
     }
 
     private function isLocalHost(string $host): bool
@@ -50,18 +57,49 @@ final class PhpWebhookTargetResolver implements WebhookTargetResolver
 
     private function isPublicIp(string $ip): bool
     {
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_GLOBAL_RANGE) !== $ip) {
             return false;
+        }
+
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            // PHP's global-range flag does not exclude IPv4 multicast. Webhook
+            // targets only permit globally routable unicast addresses.
+            return ! $this->isIpv4InRange($ip, '224.0.0.0', 4);
         }
 
         $normalised = strtolower($ip);
 
-        return $normalised !== '::'
-            && $normalised !== '::1'
-            && ! str_starts_with($normalised, 'fe80:')
-            && ! str_starts_with($normalised, 'fc')
+        // These are explicit defence-in-depth exclusions for IPv6 special-use
+        // ranges. FILTER_FLAG_GLOBAL_RANGE is the allow-list baseline.
+        return ! str_starts_with($normalised, 'fc')
             && ! str_starts_with($normalised, 'fd')
+            && ! str_starts_with($normalised, 'fe8')
+            && ! str_starts_with($normalised, 'fe9')
+            && ! str_starts_with($normalised, 'fea')
+            && ! str_starts_with($normalised, 'feb')
             && ! str_starts_with($normalised, 'ff')
-            && ! str_starts_with($normalised, '2001:db8:');
+            && ! str_starts_with($normalised, '2001:db8:')
+            && ! str_starts_with($normalised, '::ffff:');
+    }
+
+    private function isIpv4InRange(string $ip, string $network, int $prefixLength): bool
+    {
+        $packedIp = inet_pton($ip);
+        $packedNetwork = inet_pton($network);
+
+        if ($packedIp === false || $packedNetwork === false) {
+            return true;
+        }
+
+        $ipValue = unpack('N', $packedIp);
+        $networkValue = unpack('N', $packedNetwork);
+
+        if ($ipValue === false || $networkValue === false) {
+            return true;
+        }
+
+        $mask = $prefixLength === 0 ? 0 : (-1 << (32 - $prefixLength));
+
+        return ($ipValue[1] & $mask) === ($networkValue[1] & $mask);
     }
 }

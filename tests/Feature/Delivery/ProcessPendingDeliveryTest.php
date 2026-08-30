@@ -117,6 +117,41 @@ final class ProcessPendingDeliveryTest extends TestCase
         ]);
     }
 
+    public function test_a_redirect_response_is_recorded_as_an_http_status_failure_without_a_follow_up_request(): void
+    {
+        $deliveryId = $this->createDelivery('https://receiver.example/redirect');
+        $transport = new class implements WebhookTransport
+        {
+            public int $calls = 0;
+
+            public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+            {
+                $this->calls++;
+
+                return new WebhookResponse(302, 4);
+            }
+        };
+        $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
+        {
+            public function resolve(string $url): WebhookTarget
+            {
+                return new WebhookTarget($url, 'receiver.example', 443, '1.1.1.1');
+            }
+        });
+        $this->app->instance(WebhookTransport::class, $transport);
+
+        app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($deliveryId));
+
+        self::assertSame(1, $transport->calls);
+        $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'failed']);
+        $this->assertDatabaseHas('delivery_attempts', [
+            'attempt_number' => 1,
+            'status' => 'failed',
+            'failure_type' => 'http_status',
+            'response_status' => 302,
+        ]);
+    }
+
     public function test_an_unsafe_target_creates_one_failed_attempt_without_calling_transport(): void
     {
         $deliveryId = $this->createDelivery('http://127.0.0.1/blocked');

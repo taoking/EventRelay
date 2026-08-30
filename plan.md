@@ -119,3 +119,11 @@
 - [x] 实现原子 claim、事务 A/B、Webhook transport、SSRF/DNS pinning 与稳定失败分类。
 - [x] 添加 Unit/Feature/MySQL 并发/HTTP/SSRF 回归，保存完整来源并执行双环境质量门和 Docker Runtime。
 - [x] 审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。
+
+## PR #15：SSRF / DNS pinning / 完整投递并发整改
+
+- [x] 复核 Draft PR #15、`feature/webhook-http-delivery-attempt@03c6f88` 与 CI run `33303380542` 为 PASS，阅读 Independent Review、Issue、必读规范、开发记录和相关实现/测试。
+- [x] 收紧为 fail-closed global-unicast IP policy，并补齐 IPv4/IPv6 special-use、mixed DNS 与 IP literal 回归。
+- [x] 修复 IPv6 `CURLOPT_RESOLVE` 格式，抽出安全选项安装边界并保证配置失败不执行网络请求。
+- [x] 新增完整 `ProcessPendingDelivery` 两进程并发回归，并修正 Worker 完成日志。
+- [ ] 保存完整整改 Prompt，执行本机/Docker 质量门、Docker Security/并发 Runtime、提交推送、等待 CI 并同步 Draft PR 证据；Independent Review #2 前保持 `INCOMPLETE`。

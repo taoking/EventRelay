@@ -15,6 +15,12 @@ interface DeliveryExecutionRepository
 
     public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void;
 
+    public function finalizeAndScheduleRetry(
+        Delivery $delivery,
+        DeliveryAttempt $attempt,
+        DeliveryExecutionIntent $intent,
+    ): void;
+
     public function recoverStale(
         DeliveryId $deliveryId,
         DateTimeImmutable $cutoff,

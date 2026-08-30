@@ -14,29 +14,24 @@ final readonly class EnqueueDueRetries
     public const int MaximumLimit = 1000;
 
     public function __construct(
-        private DueRetryFinder $dueRetries,
-        private DeliveryQueue $queue,
+        private DeliveryOutboxIntentFinder $intents,
+        private DeliveryOutboxWriter $outbox,
         private Clock $clock,
     ) {}
 
-    public function handle(int $limit = self::DefaultLimit): EnqueuePendingDeliveriesResult
+    public function handle(int $limit = self::DefaultLimit): EnsureDeliveryOutboxIntentsResult
     {
         if ($limit < 1 || $limit > self::MaximumLimit) {
             throw new InvalidArgumentException(sprintf('The due retry limit must be between 1 and %d.', self::MaximumLimit));
         }
 
-        $enqueued = 0;
-        $failed = 0;
-
-        foreach ($this->dueRetries->findDue($this->clock->now(), $limit) as $deliveryId) {
-            try {
-                $this->queue->enqueue($deliveryId);
-                $enqueued++;
-            } catch (DeliveryQueueUnavailable) {
-                $failed++;
-            }
+        $now = $this->clock->now();
+        $ensured = 0;
+        foreach ($this->intents->findDueRetries($now, $limit) as $intent) {
+            $this->outbox->schedule($intent, $now);
+            $ensured++;
         }
 
-        return new EnqueuePendingDeliveriesResult($enqueued, $failed);
+        return new EnsureDeliveryOutboxIntentsResult($ensured);
     }
 }

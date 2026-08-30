@@ -8,7 +8,7 @@ use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
-use App\Application\Delivery\EnqueuePendingDeliveries;
+use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
 use App\Application\Delivery\WebhookTarget;
@@ -37,7 +37,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 {
     use DatabaseMigrations;
 
-    public function test_the_real_redis_job_is_published_only_after_the_delivery_is_visible_to_an_independent_mysql_connection(): void
+    public function test_the_real_redis_job_is_published_by_outbox_only_after_the_delivery_is_visible_to_an_independent_mysql_connection(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -86,6 +86,11 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
             $eventId = (string) $response->json('data.id');
             $deliveryIds = $this->deliveryIdsForEvent($eventId);
 
+            self::assertSame(0, $this->queueLength());
+            $result = app(PublishDeliveryOutbox::class)->handle(100);
+
+            self::assertSame(2, $result->published);
+            self::assertSame(0, $result->failed);
             self::assertTrue($deliveryWasCommitted);
             self::assertSame(2, $this->queueLength());
 
@@ -110,6 +115,8 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $this->replaceSubscriptions($endpointId, ['order.paid']);
         $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
         $deliveryId = $this->deliveryIdForEvent($eventId);
+
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
 
         self::assertSame(1, $this->queueLength());
         self::assertSame(0, Artisan::call('queue:work', [
@@ -199,7 +206,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $this->assertUniqueLockCanBeAcquired($deliveryId);
     }
 
-    public function test_redis_server_publication_failure_after_commit_returns_201_and_recovery_immediately_enqueues_the_delivery(): void
+    public function test_redis_server_publication_failure_leaves_the_committed_outbox_message_recoverable(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -210,6 +217,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
         try {
             $response = $this->postEvent('order.paid')->assertCreated();
+            $publication = app(PublishDeliveryOutbox::class)->handle(100);
         } finally {
             $this->app->instance(Dispatcher::class, $dispatcher);
         }
@@ -223,10 +231,13 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
             'status' => 'pending',
         ]);
         self::assertSame(0, $this->queueLength());
+        self::assertSame(0, $publication->published);
+        self::assertSame(1, $publication->failed);
+        $this->assertDatabaseHas('delivery_outbox_messages', ['status' => 'pending', 'last_error_code' => 'redis_unavailable']);
 
-        $result = app(EnqueuePendingDeliveries::class)->handle(100);
+        $result = app(PublishDeliveryOutbox::class)->handle(100);
 
-        self::assertSame(1, $result->enqueued);
+        self::assertSame(1, $result->published);
         self::assertSame(0, $result->failed);
         self::assertSame(1, $this->queueLength());
         self::assertStringContainsString($deliveryId, Redis::connection()->lIndex('queues:deliveries', 0));
@@ -261,7 +272,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         }
     }
 
-    public function test_a_real_worker_can_schedule_a_retry_for_its_own_delivery_after_the_unique_lock_is_released(): void
+    public function test_a_real_worker_creates_a_retry_outbox_intent_after_the_unique_lock_is_released(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -299,6 +310,12 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
                 'public_id' => $deliveryId->toString(),
                 'status' => 'retry_scheduled',
             ]);
+            $this->assertDatabaseHas('delivery_outbox_messages', [
+                'dedupe_key' => 'delivery:'.$deliveryId->toString().':attempt:2',
+                'attempt_number' => 2,
+                'status' => 'pending',
+            ]);
+            self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
             self::assertSame(1, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
             self::assertStringContainsString(
                 $deliveryId->toString(),

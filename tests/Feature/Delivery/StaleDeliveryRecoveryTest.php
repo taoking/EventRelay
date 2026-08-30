@@ -8,7 +8,6 @@ use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryExecutionConflict;
 use App\Application\Delivery\DeliveryExecutionRepository;
-use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\RecoverStaleDelivery;
 use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
@@ -24,26 +23,7 @@ final class StaleDeliveryRecoveryTest extends TestCase
     public function test_stale_started_attempt_is_abandoned_and_a_late_finalize_cannot_overwrite_recovery(): void
     {
         $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T11:59:00+00:00'));
-        $scheduled = [];
         $this->app->instance(Clock::class, $clock);
-        $this->app->instance(DeliveryQueue::class, new class($scheduled) implements DeliveryQueue
-        {
-            /** @param list<array{id: string, at: DateTimeImmutable}> $scheduled */
-            public function __construct(array &$scheduled)
-            {
-                $this->scheduled = &$scheduled;
-            }
-
-            /** @var list<array{id: string, at: DateTimeImmutable}> */
-            private array $scheduled;
-
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                $this->scheduled[] = ['id' => $deliveryId->toString(), 'at' => $availableAt];
-            }
-        });
         $deliveryId = $this->createDelivery();
         $execution = app(DeliveryExecutionRepository::class);
         $claimed = $execution->claim(DeliveryId::fromString($deliveryId), $clock->now());
@@ -56,10 +36,14 @@ final class StaleDeliveryRecoveryTest extends TestCase
         self::assertSame('abandoned', $recovered->attempt->status()->value);
         self::assertSame('stale_processing', $recovered->attempt->failureType()?->value);
         self::assertSame('retry_scheduled', $recovered->delivery->status()->value);
-        self::assertSame($deliveryId, $scheduled[0]['id']);
-        self::assertEquals(new DateTimeImmutable('2026-08-31T12:00:10+00:00'), $scheduled[0]['at']);
         $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'retry_scheduled']);
         $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 1, 'status' => 'abandoned', 'failure_type' => 'stale_processing']);
+        $this->assertDatabaseHas('delivery_outbox_messages', [
+            'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
+            'attempt_number' => 2,
+            'available_at' => '2026-08-31 12:00:10',
+            'status' => 'pending',
+        ]);
 
         $this->expectException(DeliveryExecutionConflict::class);
         $execution->finalize(
@@ -72,12 +56,6 @@ final class StaleDeliveryRecoveryTest extends TestCase
     {
         $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T12:00:00+00:00'));
         $this->app->instance(Clock::class, $clock);
-        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
-        {
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void {}
-        });
         $deliveryId = $this->createDelivery();
         $execution = app(DeliveryExecutionRepository::class);
         $claimed = $execution->claim(DeliveryId::fromString($deliveryId), $clock->now());

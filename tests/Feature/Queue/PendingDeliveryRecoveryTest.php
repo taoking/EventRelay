@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Queue;
 
 use App\Application\Delivery\CreateDelivery;
-use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\EnqueuePendingDeliveries;
-use App\Domain\Delivery\DeliveryId;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class PendingDeliveryRecoveryTest extends TestCase
@@ -20,39 +19,14 @@ final class PendingDeliveryRecoveryTest extends TestCase
         $first = $this->createPendingDelivery('First recovery endpoint');
         $second = $this->createPendingDelivery('Second recovery endpoint');
         $this->createPendingDelivery('Third recovery endpoint');
-        $queued = [];
-
-        $this->app->instance(
-            DeliveryQueue::class,
-            new class($queued) implements DeliveryQueue
-            {
-                /**
-                 * @param  list<string>  $queued
-                 */
-                public function __construct(array &$queued)
-                {
-                    $this->queued = &$queued;
-                }
-
-                /**
-                 * @var list<string>
-                 */
-                private array $queued;
-
-                public function enqueue(DeliveryId $deliveryId): void
-                {
-                    $this->queued[] = $deliveryId->toString();
-                }
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
-            },
-        );
-
         $result = app(EnqueuePendingDeliveries::class)->handle(2);
 
-        self::assertSame(2, $result->enqueued);
-        self::assertSame(0, $result->failed);
-        self::assertSame([$first, $second], $queued);
+        self::assertSame(2, $result->ensured);
+        self::assertSame([$first, $second], DB::table('delivery_outbox_messages')
+            ->join('deliveries', 'delivery_outbox_messages.delivery_id', '=', 'deliveries.id')
+            ->orderBy('delivery_outbox_messages.id')
+            ->pluck('deliveries.public_id')
+            ->all());
     }
 
     private function createPendingDelivery(string $endpointName): string

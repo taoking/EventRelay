@@ -156,3 +156,12 @@
 - [x] 将 Delivery URL/签名 key 原子快照设为 `CreateDelivery` 的强制 Application contract，删除可选 unsigned fallback。
 - [x] 修复 `DeliveryRepository::createOrGet()` 的签名 key 无损持久化与 Endpoint 归属校验，并补充回归测试。
 - [x] 保存完整整改 Prompt，执行双环境质量门、轻量 Docker signed smoke、push 与 GitHub Actions run `33330538162` PASS；待最终 PR 证据同步，Independent Review #2 前保持 `INCOMPLETE`。
+
+## Issue #20：Transactional Outbox 与 Durable Delivery Publication
+
+- [x] 确认 `main@f9a4a40d51e9bfddc94623f27bcfb184efb6354c`、post-merge CI run `33331233576`、PR #19 已合并、Issue #18 已关闭且 Issue #20 仍开放；创建 `feature/transactional-outbox`。
+- [x] 阅读 Issue、必读规范、开发记录、现有 Queue / Retry / Stale / HMAC 实现，并确定采用“Outbox 可提前发布延迟 Redis Job”的 `available_at` 模型：MySQL `next_attempt_at` 仍为业务时间事实源。
+- [ ] 建立最小 Outbox schema、执行 intent 去重与 Application 持久化契约；将初始 Delivery、Retry 与 stale recovery 的 intent 写入同一业务事务。
+- [ ] 实现有界、稳定排序、claim/lease 的 Outbox Publisher 与 `outbox:publish` 命令，并将旧 pending/due recovery 命令迁移为确保 durable intent 的路径。
+- [ ] 添加 MySQL/Redis 原子性、双 Publisher 并发、lease crash recovery、已知 Redis 故障与既有安全回归测试；保存 Issue / Prompt 完整原文。
+- [ ] 执行本机与 Docker 质量门、Docker Runtime A/B/C，提交、推送、创建 Draft PR、等待 CI；Independent Review 前保持 `INCOMPLETE`。

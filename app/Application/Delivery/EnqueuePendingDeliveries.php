@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Delivery;
 
+use App\Application\Clock\Clock;
 use InvalidArgumentException;
 
 final readonly class EnqueuePendingDeliveries
@@ -13,11 +14,12 @@ final readonly class EnqueuePendingDeliveries
     public const int MaximumLimit = 1000;
 
     public function __construct(
-        private PendingDeliveryFinder $pendingDeliveries,
-        private DeliveryQueue $queue,
+        private DeliveryOutboxIntentFinder $intents,
+        private DeliveryOutboxWriter $outbox,
+        private Clock $clock,
     ) {}
 
-    public function handle(int $limit = self::DefaultLimit): EnqueuePendingDeliveriesResult
+    public function handle(int $limit = self::DefaultLimit): EnsureDeliveryOutboxIntentsResult
     {
         if ($limit < 1 || $limit > self::MaximumLimit) {
             throw new InvalidArgumentException(sprintf(
@@ -26,18 +28,12 @@ final readonly class EnqueuePendingDeliveries
             ));
         }
 
-        $enqueued = 0;
-        $failed = 0;
-
-        foreach ($this->pendingDeliveries->findPending($limit) as $deliveryId) {
-            try {
-                $this->queue->enqueue($deliveryId);
-                $enqueued++;
-            } catch (DeliveryQueueUnavailable) {
-                $failed++;
-            }
+        $ensured = 0;
+        foreach ($this->intents->findPendingInitial($limit) as $intent) {
+            $this->outbox->schedule($intent, $this->clock->now());
+            $ensured++;
         }
 
-        return new EnqueuePendingDeliveriesResult($enqueued, $failed);
+        return new EnsureDeliveryOutboxIntentsResult($ensured);
     }
 }

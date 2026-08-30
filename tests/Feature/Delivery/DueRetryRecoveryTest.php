@@ -6,9 +6,7 @@ namespace Tests\Feature\Delivery;
 
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
-use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\EnqueueDueRetries;
-use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -22,35 +20,20 @@ final class DueRetryRecoveryTest extends TestCase
     public function test_due_retry_recovery_uses_stable_order_honours_limit_and_does_not_enqueue_future_retries(): void
     {
         $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T12:00:00+00:00'));
-        $queued = [];
         $this->app->instance(Clock::class, $clock);
-        $this->app->instance(DeliveryQueue::class, new class($queued) implements DeliveryQueue
-        {
-            /** @param list<string> $queued */
-            public function __construct(array &$queued)
-            {
-                $this->queued = &$queued;
-            }
-
-            /** @var list<string> */
-            private array $queued;
-
-            public function enqueue(DeliveryId $deliveryId): void
-            {
-                $this->queued[] = $deliveryId->toString();
-            }
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void {}
-        });
         $first = $this->createScheduledDelivery('First due retry', '2026-08-31 11:59:58');
         $second = $this->createScheduledDelivery('Second due retry', '2026-08-31 11:59:59');
         $this->createScheduledDelivery('Future retry', '2026-08-31 12:00:01');
 
         $result = app(EnqueueDueRetries::class)->handle(2);
 
-        self::assertSame(2, $result->enqueued);
-        self::assertSame(0, $result->failed);
-        self::assertSame([$first, $second], $queued);
+        self::assertSame(2, $result->ensured);
+        self::assertSame([$first, $second], DB::table('delivery_outbox_messages')
+            ->join('deliveries', 'delivery_outbox_messages.delivery_id', '=', 'deliveries.id')
+            ->orderBy('delivery_outbox_messages.available_at')
+            ->orderBy('delivery_outbox_messages.id')
+            ->pluck('deliveries.public_id')
+            ->all());
     }
 
     private function createScheduledDelivery(string $endpointName, string $nextAttemptAt): string

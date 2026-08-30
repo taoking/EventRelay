@@ -140,4 +140,4 @@
 
 - [x] 阅读 Independent Review #1、Issue #16、必读规范、开发记录及当前 Delivery retry/stale 实现；确认仅处理真实 stale-late-finalize 并发证据与两项 Docker Runtime 缺口。
 - [x] 新增 MySQL 双进程、socket barrier、真实 `ProcessPendingDelivery → transport → finalize` 对真实 stale recovery 的竞争回归。
-- [ ] 物理停止 Docker Redis，完成 delayed publication-gap 的 durable state 与 due-retry recovery Runtime；随后执行质量门、推送、等待 CI，并同步 Draft PR 证据。
+- [x] 物理停止 Docker Redis，完成 delayed publication-gap 的 durable state 与 due-retry recovery Runtime；执行本机/Docker 质量门，待推送、最终 CI 与 Draft PR 证据同步。

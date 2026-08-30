@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\DeliveryController;
 use App\Http\Controllers\Api\EndpointController;
+use App\Http\Controllers\Api\EndpointSigningSecretController;
 use App\Http\Controllers\Api\EndpointSubscriptionController;
 use App\Http\Controllers\Api\EventController;
 use Illuminate\Support\Facades\Route;
@@ -21,5 +22,6 @@ Route::post('/endpoints', [EndpointController::class, 'store']);
 Route::get('/endpoints/{id}', [EndpointController::class, 'show']);
 Route::patch('/endpoints/{id}', [EndpointController::class, 'update']);
 Route::delete('/endpoints/{id}', [EndpointController::class, 'destroy']);
+Route::post('/endpoints/{id}/signing-secret', [EndpointSigningSecretController::class, 'store']);
 Route::get('/endpoints/{id}/subscriptions', [EndpointSubscriptionController::class, 'index']);
 Route::put('/endpoints/{id}/subscriptions', [EndpointSubscriptionController::class, 'replace']);

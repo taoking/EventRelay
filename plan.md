@@ -141,3 +141,11 @@
 - [x] 阅读 Independent Review #1、Issue #16、必读规范、开发记录及当前 Delivery retry/stale 实现；确认仅处理真实 stale-late-finalize 并发证据与两项 Docker Runtime 缺口。
 - [x] 新增 MySQL 双进程、socket barrier、真实 `ProcessPendingDelivery → transport → finalize` 对真实 stale recovery 的竞争回归。
 - [x] 物理停止 Docker Redis，完成 delayed publication-gap 的 durable state 与 due-retry recovery Runtime；执行本机/Docker 质量门，待推送、最终 CI 与 Draft PR 证据同步。
+
+## Issue #18：Webhook HMAC Signing 与 Endpoint Secret Rotation
+
+- [x] 确认 `main@11ee0d0547607ae79455e8ecd4f85bd3a07ed08c`、CI run `33319316183` 为 PASS，且 Issue #16 已关闭；创建 `feature/webhook-hmac-signing` 并阅读必读规范、Issue 与现有实现。
+- [x] 建立版本化、加密落库的端点签名密钥，以及一次性 reveal / rotation API。
+- [x] 将 Delivery target URL 与 signing key ID 置于同一端点锁定快照窗口，并让 Worker 对实际 HTTP body 生成 v1 HMAC。
+- [ ] 补齐签名 retry、泄漏、MySQL 并发与 Docker 独立验签验证。
+- [ ] 保存完整任务来源，审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。

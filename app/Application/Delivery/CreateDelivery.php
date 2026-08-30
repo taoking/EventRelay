@@ -9,6 +9,7 @@ use App\Application\Endpoint\EndpointRepository;
 use App\Application\Event\EventNotFound;
 use App\Application\Event\EventRepository;
 use App\Domain\Delivery\Delivery;
+use App\Domain\Endpoint\EndpointId;
 
 final readonly class CreateDelivery
 {
@@ -27,13 +28,14 @@ final readonly class CreateDelivery
         }
 
         $endpoint = $this->endpoints->find($endpointId);
-
         if ($endpoint === null) {
             throw new EndpointNotFound($endpointId);
         }
 
-        return DeliveryData::fromDomain(
-            $this->deliveries->createOrGet(Delivery::create($event->id(), $endpoint->id(), $endpoint->url())),
-        );
+        $delivery = $this->deliveries instanceof DeliverySnapshotCreator
+            ? $this->deliveries->createOrGetSnapshot($event->id(), EndpointId::fromString($endpointId))
+            : $this->deliveries->createOrGet(Delivery::create($event->id(), $endpoint->id(), $endpoint->url()));
+
+        return DeliveryData::fromDomain($delivery);
     }
 }

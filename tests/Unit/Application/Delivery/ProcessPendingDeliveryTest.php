@@ -15,14 +15,18 @@ use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\StaleRecoveryResult;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
+use App\Application\Delivery\WebhookSigner;
 use App\Application\Delivery\WebhookTarget;
 use App\Application\Delivery\WebhookTargetResolver;
 use App\Application\Delivery\WebhookTransport;
+use App\Application\EndpointSigningSecret\EndpointSigningSecretRepository;
 use App\Application\Event\EventRepository;
 use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
 use App\Domain\DeliveryAttempt\DeliveryAttempt;
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\EndpointSigningSecret\EndpointSigningSecret;
+use App\Domain\EndpointSigningSecret\EndpointSigningSecretId;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventId;
 use Tests\TestCase;
@@ -123,6 +127,25 @@ final class ProcessPendingDeliveryTest extends TestCase
                     return new \DateTimeImmutable('2026-08-31T12:00:00+00:00');
                 }
             },
+            new class implements EndpointSigningSecretRepository
+            {
+                public function rotate(string $endpointId, EndpointSigningSecretId $keyId, string $encryptedSecret, \DateTimeImmutable $now): EndpointSigningSecret
+                {
+                    throw new \LogicException('not called');
+                }
+
+                public function plaintext(EndpointSigningSecretId $keyId): string
+                {
+                    throw new \LogicException('not called');
+                }
+            },
+            new class implements WebhookSigner
+            {
+                public function sign(string $secret, int $timestamp, DeliveryId $deliveryId, int $attemptNumber, string $body): string
+                {
+                    throw new \LogicException('not called');
+                }
+            },
         ))->handle($delivery->id());
 
         self::assertSame('pending', $delivery->status()->value);
@@ -210,6 +233,25 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function now(): \DateTimeImmutable
                 {
                     return new \DateTimeImmutable('2026-08-31T12:00:00+00:00');
+                }
+            },
+            new class implements EndpointSigningSecretRepository
+            {
+                public function rotate(string $endpointId, EndpointSigningSecretId $keyId, string $encryptedSecret, \DateTimeImmutable $now): EndpointSigningSecret
+                {
+                    throw new \LogicException('not called');
+                }
+
+                public function plaintext(EndpointSigningSecretId $keyId): string
+                {
+                    throw new \LogicException('not called');
+                }
+            },
+            new class implements WebhookSigner
+            {
+                public function sign(string $secret, int $timestamp, DeliveryId $deliveryId, int $attemptNumber, string $body): string
+                {
+                    throw new \LogicException('not called');
                 }
             },
         );

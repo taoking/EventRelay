@@ -37,7 +37,7 @@ final readonly class EloquentEndpointSigningSecretRepository implements Endpoint
                     ->lockForUpdate()
                     ->first();
 
-                if ($previous === null || $previous->endpoint_id !== $endpoint->getKey()) {
+                if ($previous === null || (int) $previous->endpoint_id !== (int) $endpoint->getKey()) {
                     throw new LogicException('Endpoint signing-secret pointer is corrupt.');
                 }
             }

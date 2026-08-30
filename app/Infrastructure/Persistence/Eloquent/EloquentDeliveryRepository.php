@@ -54,9 +54,10 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
             if ($endpoint->current_signing_secret_id !== null) {
                 $secret = EndpointSigningSecretRecord::query()
                     ->whereKey($endpoint->current_signing_secret_id)
+                    ->lockForUpdate()
                     ->first();
 
-                if ($secret === null || $secret->endpoint_id !== $endpoint->getKey()) {
+                if ($secret === null || (int) $secret->endpoint_id !== (int) $endpoint->getKey()) {
                     throw new LogicException('Endpoint signing-secret pointer is corrupt.');
                 }
                 $secretId = EndpointSigningSecretId::fromString($secret->public_id);
@@ -187,7 +188,9 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
 
     private function signingSecretPublicId(int $secretId): string
     {
-        $record = EndpointSigningSecretRecord::query()->find($secretId);
+        $record = EndpointSigningSecretRecord::query()
+            ->lockForUpdate()
+            ->find($secretId);
         if ($record === null) {
             throw new LogicException('Persisted signing-secret reference is missing.');
         }
@@ -203,9 +206,10 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
 
         $record = EndpointSigningSecretRecord::query()
             ->where('public_id', $secretId->toString())
+            ->lockForUpdate()
             ->first();
 
-        if ($record === null || $record->endpoint_id !== $endpointId) {
+        if ($record === null || (int) $record->endpoint_id !== $endpointId) {
             throw new LogicException('Delivery signing-secret reference is missing or belongs to another endpoint.');
         }
 

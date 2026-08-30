@@ -118,4 +118,4 @@
 - [x] 实现 target URL snapshot、Delivery 状态机、DeliveryAttempt 持久化与只读 API。
 - [x] 实现原子 claim、事务 A/B、Webhook transport、SSRF/DNS pinning 与稳定失败分类。
 - [x] 添加 Unit/Feature/MySQL 并发/HTTP/SSRF 回归，保存完整来源并执行双环境质量门和 Docker Runtime。
-- [ ] 审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。
+- [x] 审核、提交、推送、创建 Draft PR、等待 CI 并同步证据；Independent Review 前保持 `INCOMPLETE`。

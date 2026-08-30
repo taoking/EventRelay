@@ -33,7 +33,7 @@ final readonly class CreateDelivery
         }
 
         return DeliveryData::fromDomain(
-            $this->deliveries->createOrGet(Delivery::create($event->id(), $endpoint->id())),
+            $this->deliveries->createOrGet(Delivery::create($event->id(), $endpoint->id(), $endpoint->url())),
         );
     }
 }

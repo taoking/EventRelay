@@ -33,6 +33,7 @@ final class DeliveryApiTest extends TestCase
         self::assertSame('pending', $first->status);
         self::assertSame($eventId, $first->eventId);
         self::assertSame($endpointId, $first->endpointId);
+        self::assertSame('https://example.test/webhooks/delivery', $first->targetUrl);
         $this->assertDatabaseCount('deliveries', 1);
     }
 
@@ -53,6 +54,7 @@ final class DeliveryApiTest extends TestCase
             'public_id' => '0f5c53d4-4957-4587-8685-c10b7a565f0b',
             'event_id' => $eventInternalId,
             'endpoint_id' => $endpointInternalId,
+            'target_url' => 'https://example.test/webhooks/delivery',
             'status' => 'pending',
         ]);
     }
@@ -126,6 +128,25 @@ final class DeliveryApiTest extends TestCase
         $this->getJson("/api/deliveries/{$firstDelivery->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $firstDelivery->id);
+    }
+
+    public function test_a_delivery_keeps_its_original_target_url_when_its_endpoint_changes(): void
+    {
+        $eventId = $this->createEvent('order.paid');
+        $endpointId = $this->createEndpoint();
+        $first = $this->createDelivery($eventId, $endpointId);
+
+        $this->patchJson("/api/endpoints/{$endpointId}", [
+            'url' => 'https://updated.example/webhooks/delivery',
+        ])->assertOk();
+
+        $sameDelivery = $this->createDelivery($eventId, $endpointId);
+
+        self::assertSame($first->id, $sameDelivery->id);
+        self::assertSame('https://example.test/webhooks/delivery', $sameDelivery->targetUrl);
+
+        $future = $this->createDelivery($this->createEvent('invoice.paid'), $endpointId);
+        self::assertSame('https://updated.example/webhooks/delivery', $future->targetUrl);
     }
 
     public function test_unknown_delivery_returns_not_found(): void

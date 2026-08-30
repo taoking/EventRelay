@@ -18,13 +18,14 @@ final class DeliveryTest extends TestCase
     #[Test]
     public function it_creates_a_pending_delivery_with_a_public_uuid_v4(): void
     {
-        $delivery = Delivery::create(EventId::generate(), EndpointId::generate());
+        $delivery = Delivery::create(EventId::generate(), EndpointId::generate(), 'https://receiver.example/webhook');
 
         self::assertMatchesRegularExpression(
             '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
             $delivery->id()->toString(),
         );
         self::assertSame(DeliveryStatus::Pending, $delivery->status());
+        self::assertSame('https://receiver.example/webhook', $delivery->targetUrl());
         self::assertEquals($delivery->createdAt(), $delivery->updatedAt());
     }
 
@@ -41,6 +42,7 @@ final class DeliveryTest extends TestCase
             $id,
             $eventId,
             $endpointId,
+            'https://receiver.example/webhook',
             DeliveryStatus::Pending,
             $createdAt,
             $updatedAt,
@@ -50,7 +52,46 @@ final class DeliveryTest extends TestCase
         self::assertSame($eventId->toString(), $delivery->eventId()->toString());
         self::assertSame($endpointId->toString(), $delivery->endpointId()->toString());
         self::assertSame(DeliveryStatus::Pending, $delivery->status());
+        self::assertSame('https://receiver.example/webhook', $delivery->targetUrl());
         self::assertEquals($createdAt, $delivery->createdAt());
         self::assertEquals($updatedAt, $delivery->updatedAt());
+    }
+
+    #[Test]
+    public function it_allows_only_the_delivery_state_machine_transitions(): void
+    {
+        $delivery = Delivery::create(EventId::generate(), EndpointId::generate(), 'https://receiver.example/webhook');
+
+        $processing = $delivery->claim();
+        self::assertSame(DeliveryStatus::Processing, $processing->status());
+        self::assertSame(DeliveryStatus::Succeeded, $processing->succeed()->status());
+        self::assertSame(DeliveryStatus::Failed, $processing->fail()->status());
+
+        $this->expectException(\LogicException::class);
+        $delivery->succeed();
+    }
+
+    #[Test]
+    public function it_rejects_terminal_and_skipped_state_transitions(): void
+    {
+        $pending = Delivery::create(EventId::generate(), EndpointId::generate(), 'https://receiver.example/webhook');
+        $processing = $pending->claim();
+        $succeeded = $processing->succeed();
+        $failed = $processing->fail();
+
+        $invalidTransitions = [
+            static fn (): Delivery => $pending->fail(),
+            static fn (): Delivery => $succeeded->claim(),
+            static fn (): Delivery => $failed->claim(),
+        ];
+
+        foreach ($invalidTransitions as $transition) {
+            try {
+                $transition();
+                self::fail('Terminal or skipped state transition must be rejected.');
+            } catch (\LogicException) {
+                self::addToAssertionCount(1);
+            }
+        }
     }
 }

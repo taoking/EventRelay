@@ -89,12 +89,12 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         }
     }
 
-    public function test_a_real_worker_consumes_the_redis_job_and_keeps_the_delivery_pending(): void
+    public function test_a_real_worker_records_an_unsafe_target_failure_without_queue_retry(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
 
-        $endpointId = $this->createEndpoint('Worker endpoint');
+        $endpointId = $this->createEndpoint('Worker endpoint', 'http://127.0.0.1/redis-queue');
         $this->replaceSubscriptions($endpointId, ['order.paid']);
         $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
         $deliveryId = $this->deliveryIdForEvent($eventId);
@@ -109,12 +109,14 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         self::assertSame(0, $this->queueLength());
         $this->assertDatabaseHas('deliveries', [
             'public_id' => $deliveryId,
-            'status' => 'pending',
+            'status' => 'failed',
         ]);
-        self::assertFalse(
-            \Schema::hasTable('delivery_attempts'),
-            'Issue #12 worker must not create a DeliveryAttempt table.',
-        );
+        $this->assertDatabaseHas('delivery_attempts', [
+            'delivery_id' => DB::table('deliveries')->where('public_id', $deliveryId)->value('id'),
+            'attempt_number' => 1,
+            'status' => 'failed',
+            'failure_type' => 'unsafe_target',
+        ]);
     }
 
     public function test_real_redis_connection_failures_are_translated_and_logged_as_publication_failures(): void
@@ -307,11 +309,11 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         return Redis::connection()->lLen('queues:deliveries');
     }
 
-    private function createEndpoint(string $name): string
+    private function createEndpoint(string $name, string $url = 'https://example.test/webhooks/redis-queue'): string
     {
         $response = $this->postJson('/api/endpoints', [
             'name' => $name,
-            'url' => 'https://example.test/webhooks/redis-queue',
+            'url' => $url,
         ])->assertCreated();
 
         return (string) $response->json('data.id');

@@ -13,6 +13,7 @@ Route::post('/events', [EventController::class, 'store']);
 Route::get('/events/{id}', [EventController::class, 'show']);
 
 Route::get('/deliveries', [DeliveryController::class, 'index']);
+Route::get('/deliveries/{id}/attempts', [DeliveryController::class, 'attempts']);
 Route::get('/deliveries/{id}', [DeliveryController::class, 'show']);
 
 Route::get('/endpoints', [EndpointController::class, 'index']);

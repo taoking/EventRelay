@@ -15,12 +15,13 @@ final readonly class Delivery
         private DeliveryId $id,
         private EventId $eventId,
         private EndpointId $endpointId,
+        private string $targetUrl,
         private DeliveryStatus $status,
         private DateTimeImmutable $createdAt,
         private DateTimeImmutable $updatedAt,
     ) {}
 
-    public static function create(EventId $eventId, EndpointId $endpointId): self
+    public static function create(EventId $eventId, EndpointId $endpointId, string $targetUrl): self
     {
         $now = new DateTimeImmutable;
 
@@ -28,6 +29,7 @@ final readonly class Delivery
             DeliveryId::generate(),
             $eventId,
             $endpointId,
+            $targetUrl,
             DeliveryStatus::Pending,
             $now,
             $now,
@@ -38,6 +40,7 @@ final readonly class Delivery
         DeliveryId $id,
         EventId $eventId,
         EndpointId $endpointId,
+        string $targetUrl,
         DeliveryStatus $status,
         DateTimeInterface $createdAt,
         DateTimeInterface $updatedAt,
@@ -46,6 +49,7 @@ final readonly class Delivery
             $id,
             $eventId,
             $endpointId,
+            $targetUrl,
             $status,
             DateTimeImmutable::createFromInterface($createdAt),
             DateTimeImmutable::createFromInterface($updatedAt),
@@ -67,6 +71,11 @@ final readonly class Delivery
         return $this->endpointId;
     }
 
+    public function targetUrl(): string
+    {
+        return $this->targetUrl;
+    }
+
     public function status(): DeliveryStatus
     {
         return $this->status;
@@ -80,5 +89,43 @@ final readonly class Delivery
     public function updatedAt(): DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function claim(): self
+    {
+        return $this->transitionTo(DeliveryStatus::Processing);
+    }
+
+    public function succeed(): self
+    {
+        return $this->transitionTo(DeliveryStatus::Succeeded);
+    }
+
+    public function fail(): self
+    {
+        return $this->transitionTo(DeliveryStatus::Failed);
+    }
+
+    private function transitionTo(DeliveryStatus $next): self
+    {
+        $allowed = match ($this->status) {
+            DeliveryStatus::Pending => $next === DeliveryStatus::Processing,
+            DeliveryStatus::Processing => in_array($next, [DeliveryStatus::Succeeded, DeliveryStatus::Failed], true),
+            DeliveryStatus::Succeeded, DeliveryStatus::Failed => false,
+        };
+
+        if (! $allowed) {
+            throw new \LogicException("Delivery transition {$this->status->value} → {$next->value} is not allowed.");
+        }
+
+        return new self(
+            $this->id,
+            $this->eventId,
+            $this->endpointId,
+            $this->targetUrl,
+            $next,
+            $this->createdAt,
+            new DateTimeImmutable,
+        );
     }
 }

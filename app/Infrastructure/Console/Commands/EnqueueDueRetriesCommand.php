@@ -12,7 +12,7 @@ final class EnqueueDueRetriesCommand extends Command
 {
     protected $signature = 'deliveries:enqueue-due-retries {--limit=100 : 一次最多调度的到期 retry Delivery 数量（1-1000）}';
 
-    protected $description = '将已到期但可能缺失 Redis Job 的 retry_scheduled Delivery 重新调度。';
+    protected $description = '为已到期 retry_scheduled Delivery 确保 durable Outbox 执行意图。';
 
     public function handle(EnqueueDueRetries $enqueueDueRetries): int
     {
@@ -32,7 +32,7 @@ final class EnqueueDueRetriesCommand extends Command
             return self::FAILURE;
         }
 
-        $this->components->info(sprintf('到期 retry 调度完成：成功 %d，发布失败 %d。', $result->enqueued, $result->failed));
+        $this->components->info(sprintf('到期 retry Outbox 意图确保完成：处理 %d。', $result->ensured));
 
         return self::SUCCESS;
     }

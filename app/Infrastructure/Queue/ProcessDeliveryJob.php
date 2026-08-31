@@ -7,13 +7,12 @@ namespace App\Infrastructure\Queue;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Domain\Delivery\DeliveryId;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 
-final class ProcessDeliveryJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
+final class ProcessDeliveryJob implements ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;
@@ -23,18 +22,11 @@ final class ProcessDeliveryJob implements ShouldBeUniqueUntilProcessing, ShouldQ
 
     public int $timeout = 10;
 
-    public int $uniqueFor = 300;
-
     public function __construct(
         public readonly string $deliveryId,
     ) {
         $this->onConnection('redis');
         $this->onQueue('deliveries');
-    }
-
-    public function uniqueId(): string
-    {
-        return $this->deliveryId;
     }
 
     public function handle(ProcessPendingDelivery $processor): void

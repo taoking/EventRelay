@@ -8,7 +8,7 @@ use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
-use App\Application\Delivery\EnqueuePendingDeliveries;
+use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
 use App\Application\Delivery\WebhookTarget;
@@ -37,7 +37,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 {
     use DatabaseMigrations;
 
-    public function test_the_real_redis_job_is_published_only_after_the_delivery_is_visible_to_an_independent_mysql_connection(): void
+    public function test_the_real_redis_job_is_published_by_outbox_only_after_the_delivery_is_visible_to_an_independent_mysql_connection(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -86,6 +86,11 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
             $eventId = (string) $response->json('data.id');
             $deliveryIds = $this->deliveryIdsForEvent($eventId);
 
+            self::assertSame(0, $this->queueLength());
+            $result = app(PublishDeliveryOutbox::class)->handle(100);
+
+            self::assertSame(2, $result->published);
+            self::assertSame(0, $result->failed);
             self::assertTrue($deliveryWasCommitted);
             self::assertSame(2, $this->queueLength());
 
@@ -110,6 +115,8 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $this->replaceSubscriptions($endpointId, ['order.paid']);
         $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
         $deliveryId = $this->deliveryIdForEvent($eventId);
+
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
 
         self::assertSame(1, $this->queueLength());
         self::assertSame(0, Artisan::call('queue:work', [
@@ -168,7 +175,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
             ));
     }
 
-    public function test_real_publisher_translates_redis_server_errors_and_releases_the_unique_lock(): void
+    public function test_real_publisher_translates_redis_server_errors_without_queue_level_lock_cleanup(): void
     {
         $this->requireMySqlAndRedis();
         $deliveryId = DeliveryId::fromString('adb4d301-f44a-4dab-a545-6f9046cbeb6f');
@@ -196,10 +203,9 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
                     && ! array_key_exists('payload', $context),
             ));
 
-        $this->assertUniqueLockCanBeAcquired($deliveryId);
     }
 
-    public function test_redis_server_publication_failure_after_commit_returns_201_and_recovery_immediately_enqueues_the_delivery(): void
+    public function test_redis_server_publication_failure_leaves_the_committed_outbox_message_recoverable(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -210,6 +216,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
         try {
             $response = $this->postEvent('order.paid')->assertCreated();
+            $publication = app(PublishDeliveryOutbox::class)->handle(100);
         } finally {
             $this->app->instance(Dispatcher::class, $dispatcher);
         }
@@ -223,19 +230,21 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
             'status' => 'pending',
         ]);
         self::assertSame(0, $this->queueLength());
+        self::assertSame(0, $publication->published);
+        self::assertSame(1, $publication->failed);
+        $this->assertDatabaseHas('delivery_outbox_messages', ['status' => 'pending', 'last_error_code' => 'redis_unavailable']);
 
-        $result = app(EnqueuePendingDeliveries::class)->handle(100);
+        $result = app(PublishDeliveryOutbox::class)->handle(100);
 
-        self::assertSame(1, $result->enqueued);
+        self::assertSame(1, $result->published);
         self::assertSame(0, $result->failed);
         self::assertSame(1, $this->queueLength());
         self::assertStringContainsString($deliveryId, Redis::connection()->lIndex('queues:deliveries', 0));
 
-        $this->releaseUniqueLock(DeliveryId::fromString($deliveryId));
         $this->clearDeliveriesQueue();
     }
 
-    public function test_real_unique_dispatch_keeps_only_one_queued_job_for_duplicate_delivery_enqueue_requests(): void
+    public function test_duplicate_queue_publications_physically_push_duplicate_jobs_for_the_delivery_claim_to_absorb(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -244,24 +253,26 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
         $delivery = app(CreateDelivery::class)->handle($eventId, $endpointId);
         $deliveryId = DeliveryId::fromString($delivery->id);
-        $this->releaseUniqueLock($deliveryId);
 
         try {
             app(DeliveryQueue::class)->enqueue($deliveryId);
             app(DeliveryQueue::class)->enqueue($deliveryId);
 
-            self::assertSame(1, $this->queueLength());
+            self::assertSame(2, $this->queueLength());
             self::assertStringContainsString(
                 $deliveryId->toString(),
                 Redis::connection()->lIndex('queues:deliveries', 0),
             );
+            self::assertStringContainsString(
+                $deliveryId->toString(),
+                Redis::connection()->lIndex('queues:deliveries', 1),
+            );
         } finally {
-            $this->releaseUniqueLock($deliveryId);
             $this->clearDeliveriesQueue();
         }
     }
 
-    public function test_a_real_worker_can_schedule_a_retry_for_its_own_delivery_after_the_unique_lock_is_released(): void
+    public function test_a_real_worker_creates_a_retry_outbox_intent_without_a_queue_level_lock(): void
     {
         $this->requireMySqlAndRedis();
         $this->clearDeliveriesQueue();
@@ -299,13 +310,47 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
                 'public_id' => $deliveryId->toString(),
                 'status' => 'retry_scheduled',
             ]);
+            $this->assertDatabaseHas('delivery_outbox_messages', [
+                'dedupe_key' => 'delivery:'.$deliveryId->toString().':attempt:2',
+                'attempt_number' => 2,
+                'status' => 'pending',
+            ]);
+            self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
             self::assertSame(1, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
             self::assertStringContainsString(
                 $deliveryId->toString(),
                 (string) Redis::connection()->zRange('queues:deliveries:delayed', 0, 0)[0],
             );
         } finally {
-            $this->releaseUniqueLock($deliveryId);
+            $this->clearDeliveriesQueue();
+        }
+    }
+
+    public function test_an_orphan_laravel_unique_lock_cannot_suppress_physical_outbox_publication(): void
+    {
+        $this->requireMySqlAndRedis();
+        $this->clearDeliveriesQueue();
+
+        $endpointId = $this->createEndpoint('Orphan lock endpoint');
+        $this->replaceSubscriptions($endpointId, ['order.paid']);
+        $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
+        $deliveryId = DeliveryId::fromString($this->deliveryIdForEvent($eventId));
+        $job = new ProcessDeliveryJob($deliveryId->toString());
+        $orphan = new UniqueLock(app(Cache::class));
+        self::assertTrue($orphan->acquire($job));
+
+        try {
+            $result = app(PublishDeliveryOutbox::class)->handle(100);
+
+            self::assertSame(1, $result->published);
+            self::assertSame(0, $result->failed);
+            self::assertSame(1, $this->queueLength());
+            $this->assertDatabaseHas('delivery_outbox_messages', [
+                'dedupe_key' => 'delivery:'.$deliveryId->toString().':attempt:1',
+                'status' => 'published',
+            ]);
+        } finally {
+            $orphan->release($job);
             $this->clearDeliveriesQueue();
         }
     }
@@ -321,20 +366,6 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $this->app->instance(Dispatcher::class, $dispatcher);
 
         return $originalDispatcher;
-    }
-
-    private function assertUniqueLockCanBeAcquired(DeliveryId $deliveryId): void
-    {
-        $job = new ProcessDeliveryJob($deliveryId->toString());
-        $uniqueLock = new UniqueLock(app(Cache::class));
-
-        self::assertTrue($uniqueLock->acquire($job));
-        $uniqueLock->release($job);
-    }
-
-    private function releaseUniqueLock(DeliveryId $deliveryId): void
-    {
-        (new UniqueLock(app(Cache::class)))->release(new ProcessDeliveryJob($deliveryId->toString()));
     }
 
     private function requireMySqlAndRedis(): void

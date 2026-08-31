@@ -21,7 +21,6 @@ final readonly class ProcessPendingDelivery
         private WebhookTargetResolver $targets,
         private WebhookTransport $transport,
         private DeliveryRetryPolicy $retryPolicy,
-        private DeliveryQueue $queue,
         private Clock $clock,
         private EndpointSigningSecretRepository $signingSecrets,
         private WebhookSigner $signer,
@@ -131,19 +130,17 @@ final readonly class ProcessPendingDelivery
             ? $delivery->fail($now)
             : $delivery->scheduleRetry($availableAt, $now);
 
-        $this->execution->finalize(
-            $finalDelivery,
-            $attempt->fail($type, $message, $responseStatus, $durationMs, $now),
-        );
-
+        $failedAttempt = $attempt->fail($type, $message, $responseStatus, $durationMs, $now);
         if ($availableAt === null) {
+            $this->execution->finalize($finalDelivery, $failedAttempt);
+
             return;
         }
 
-        try {
-            $this->queue->schedule($deliveryId, $availableAt);
-        } catch (DeliveryQueueUnavailable) {
-            // Redis publication 属于 commit 之后的已知基础设施故障；由 due-retry recovery 补发。
-        }
+        $this->execution->finalizeAndScheduleRetry(
+            $finalDelivery,
+            $failedAttempt,
+            new DeliveryExecutionIntent($deliveryId, $attempt->number() + 1, $availableAt),
+        );
     }
 }

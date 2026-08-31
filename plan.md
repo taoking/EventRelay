@@ -156,3 +156,25 @@
 - [x] 将 Delivery URL/签名 key 原子快照设为 `CreateDelivery` 的强制 Application contract，删除可选 unsigned fallback。
 - [x] 修复 `DeliveryRepository::createOrGet()` 的签名 key 无损持久化与 Endpoint 归属校验，并补充回归测试。
 - [x] 保存完整整改 Prompt，执行双环境质量门、轻量 Docker signed smoke、push 与 GitHub Actions run `33330538162` PASS；待最终 PR 证据同步，Independent Review #2 前保持 `INCOMPLETE`。
+
+## Issue #20：Transactional Outbox 与 Durable Delivery Publication
+
+- [x] 确认 `main@f9a4a40d51e9bfddc94623f27bcfb184efb6354c`、post-merge CI run `33331233576`、PR #19 已合并、Issue #18 已关闭且 Issue #20 仍开放；创建 `feature/transactional-outbox`。
+- [x] 阅读 Issue、必读规范、开发记录、现有 Queue / Retry / Stale / HMAC 实现，并确定采用“Outbox 可提前发布延迟 Redis Job”的 `available_at` 模型：MySQL `next_attempt_at` 仍为业务时间事实源。
+- [x] 建立最小 Outbox schema、执行 intent 去重与 Application 持久化契约；将初始 Delivery、Retry 与 stale recovery 的 intent 写入同一业务事务。
+- [x] 实现有界、稳定排序、claim/lease 的 Outbox Publisher 与 `outbox:publish` 命令，并将旧 pending/due recovery 命令迁移为确保 durable intent 的路径。
+- [x] 添加 MySQL/Redis 原子性、双 Publisher 并发、lease crash recovery、已知 Redis 故障与既有安全回归测试；保存 Issue / Prompt 完整原文。
+- [x] 执行本机与 Docker 质量门、Docker Runtime A/B/C。
+- [x] 提交最终运行证据、推送、创建 Draft PR #21，并确认 GitHub Actions run `33344487442` 为 PASS。
+- [ ] Independent Review：NOT RUN；在其完成前保持 `INCOMPLETE`，不得自行 Merge。
+
+## PR #21：Independent Review #1 — broker-loss recovery 与 publication acknowledgement 整改
+
+- [x] 复核 Draft PR #21、审查结论、Outbox/Queue/Recovery 实现与现有 Redis/MySQL 回归，确认只处理 broker-loss re-arm、真实 publication acknowledgement 与 lease 批次边界。
+- [x] 将人工 pending/due recovery 分离为业务状态校验后的 Outbox recovery contract；仅对尚未开始的当前 intent 重开已 published message。
+- [x] 移除 Queue 层 `ShouldBeUniqueUntilProcessing` 静默抑制，使 Outbox publisher 的成功标记对应实际 Redis publication；保留 Delivery 原子 claim 作为业务正确性防线。
+- [x] 新增 broker-loss initial/retry、orphan unique-lock、re-arm 并发与 lease expiry at-least-once 回归。
+- [x] 补齐完整整改 Prompt，执行本机/Docker 质量门与 Docker Runtime D/E/F，提交整改功能与运行证据。
+- [x] 推送并确认整改 HEAD 的 GitHub Actions run `33346107528` 为 PASS，PR Body 使用正确链接同步证据。
+- [ ] 推送最终 CI traceability 文档并确认其 GitHub Actions；Independent Review #2 前保持 `INCOMPLETE`。
+- [ ] Independent Review #2：NOT RUN；在其完成前保持 `INCOMPLETE`，不得自行 Merge。

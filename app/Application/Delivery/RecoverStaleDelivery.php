@@ -15,7 +15,6 @@ final readonly class RecoverStaleDelivery
     public function __construct(
         private DeliveryExecutionRepository $execution,
         private DeliveryRetryPolicy $retryPolicy,
-        private DeliveryQueue $queue,
         private Clock $clock,
     ) {}
 
@@ -28,14 +27,6 @@ final readonly class RecoverStaleDelivery
             $now,
             $this->retryPolicy,
         );
-
-        if ($result?->availableAt !== null) {
-            try {
-                $this->queue->schedule($deliveryId, $result->availableAt);
-            } catch (DeliveryQueueUnavailable) {
-                // 已提交的 retry_scheduled 仍由 due-retry recovery 负责补发。
-            }
-        }
 
         return $result;
     }

@@ -6,8 +6,6 @@ namespace Tests\Feature\Delivery;
 
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
-use App\Application\Delivery\DeliveryQueue;
-use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
@@ -18,7 +16,6 @@ use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 use Tests\Support\FrozenClock;
 use Tests\TestCase;
 
@@ -26,21 +23,9 @@ final class DeliveryRetryTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_retryable_failure_is_scheduled_after_commit_and_the_due_second_attempt_succeeds(): void
+    public function test_a_retryable_failure_creates_a_durable_outbox_intent_in_the_finalize_transaction_and_the_due_second_attempt_succeeds(): void
     {
         $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T12:00:00+00:00'));
-        $queue = new class implements DeliveryQueue
-        {
-            /** @var list<array{id: string, at: DateTimeImmutable}> */
-            public array $scheduled = [];
-
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                $this->scheduled[] = ['id' => $deliveryId->toString(), 'at' => $availableAt];
-            }
-        };
         $transport = new class implements WebhookTransport
         {
             /** @var list<WebhookResponse> */
@@ -61,7 +46,7 @@ final class DeliveryRetryTest extends TestCase
                 return array_shift($this->responses) ?? throw new \LogicException('Unexpected fourth HTTP send.');
             }
         };
-        $this->bindExecutionDependencies($clock, $queue, $transport);
+        $this->bindExecutionDependencies($clock, $transport);
         $deliveryId = $this->createDelivery();
 
         app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($deliveryId));
@@ -74,8 +59,14 @@ final class DeliveryRetryTest extends TestCase
         $this->getJson("/api/deliveries/{$deliveryId}")
             ->assertOk()
             ->assertJsonPath('data.status', 'retry_scheduled');
-        self::assertSame($deliveryId, $queue->scheduled[0]['id']);
-        self::assertEquals(new DateTimeImmutable('2026-08-31T12:00:10+00:00'), $queue->scheduled[0]['at']);
+        $this->assertDatabaseHas('delivery_outbox_messages', [
+            'delivery_id' => DB::table('deliveries')->where('public_id', $deliveryId)->value('id'),
+            'message_type' => 'delivery.process',
+            'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
+            'attempt_number' => 2,
+            'available_at' => '2026-08-31 12:00:10',
+            'status' => 'pending',
+        ]);
 
         $clock->set(new DateTimeImmutable('2026-08-31T12:00:09+00:00'));
         app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($deliveryId));
@@ -94,18 +85,7 @@ final class DeliveryRetryTest extends TestCase
     public function test_a_non_retryable_http_status_is_terminal_without_a_delayed_job(): void
     {
         $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T12:00:00+00:00'));
-        $queue = new class implements DeliveryQueue
-        {
-            public int $scheduled = 0;
-
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                $this->scheduled++;
-            }
-        };
-        $this->bindExecutionDependencies($clock, $queue, new class implements WebhookTransport
+        $this->bindExecutionDependencies($clock, new class implements WebhookTransport
         {
             public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
             {
@@ -117,22 +97,13 @@ final class DeliveryRetryTest extends TestCase
         app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($deliveryId));
 
         $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'failed', 'next_attempt_at' => null]);
-        self::assertSame(0, $queue->scheduled);
+        $this->assertDatabaseCount('delivery_outbox_messages', 0);
     }
 
-    public function test_a_known_delayed_publication_failure_keeps_the_committed_retry_scheduled_delivery(): void
+    public function test_retryable_failure_keeps_committed_retry_state_and_outbox_intent_without_contacting_redis(): void
     {
         $clock = new FrozenClock(new DateTimeImmutable('2026-08-31T12:00:00+00:00'));
         $this->app->instance(Clock::class, $clock);
-        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
-        {
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis is unavailable.'));
-            }
-        });
         $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
         {
             public function resolve(string $url): WebhookTarget
@@ -153,12 +124,15 @@ final class DeliveryRetryTest extends TestCase
 
         $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'retry_scheduled']);
         $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 1, 'status' => 'failed', 'response_status' => 500]);
+        $this->assertDatabaseHas('delivery_outbox_messages', [
+            'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
+            'status' => 'pending',
+        ]);
     }
 
-    private function bindExecutionDependencies(FrozenClock $clock, DeliveryQueue $queue, WebhookTransport $transport): void
+    private function bindExecutionDependencies(FrozenClock $clock, WebhookTransport $transport): void
     {
         $this->app->instance(Clock::class, $clock);
-        $this->app->instance(DeliveryQueue::class, $queue);
         $this->app->instance(WebhookTransport::class, $transport);
         $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
         {

@@ -24,45 +24,66 @@ final class DeliveryQueueSchedulingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_an_event_without_matching_deliveries_does_not_request_queue_publication(): void
+    public function test_an_event_without_matching_deliveries_does_not_create_an_outbox_intent(): void
     {
-        $queued = [];
-        $this->replaceQueue($queued);
-
         $this->postEvent('order.paid')->assertCreated();
 
-        self::assertSame([], $queued);
         $this->assertDatabaseCount('events', 1);
         $this->assertDatabaseCount('deliveries', 0);
+        $this->assertDatabaseCount('delivery_outbox_messages', 0);
     }
 
-    public function test_each_committed_matching_delivery_requests_queue_publication(): void
+    public function test_each_committed_matching_delivery_creates_an_initial_outbox_intent_without_direct_queue_publication(): void
     {
         $first = $this->createEndpoint('First queued endpoint');
         $second = $this->createEndpoint('Second queued endpoint');
         $this->replaceSubscriptions($first, ['order.paid']);
         $this->replaceSubscriptions($second, ['order.paid']);
 
-        $queued = [];
-        $this->replaceQueue($queued);
+        $queueWasCalled = false;
+        $this->app->instance(DeliveryQueue::class, new class($queueWasCalled) implements DeliveryQueue
+        {
+            public function __construct(bool &$queueWasCalled)
+            {
+                $this->queueWasCalled = &$queueWasCalled;
+            }
+
+            private bool $queueWasCalled;
+
+            public function enqueue(DeliveryId $deliveryId): void
+            {
+                $this->queueWasCalled = true;
+                throw new RuntimeException('CreateEvent must not publish Redis directly.');
+            }
+
+            public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
+            {
+                $this->queueWasCalled = true;
+                throw new RuntimeException('CreateEvent must not publish Redis directly.');
+            }
+        });
 
         $response = $this->postEvent('order.paid')->assertCreated();
         $eventId = (string) $response->json('data.id');
 
-        self::assertCount(2, $queued);
-        self::assertSame(
-            $this->deliveryIdsForEvent($eventId),
-            $queued,
-        );
+        self::assertFalse($queueWasCalled);
+        self::assertSame($this->deliveryIdsForEvent($eventId), DB::table('delivery_outbox_messages')
+            ->join('deliveries', 'delivery_outbox_messages.delivery_id', '=', 'deliveries.id')
+            ->orderBy('delivery_outbox_messages.id')
+            ->pluck('deliveries.public_id')
+            ->all());
+        $this->assertDatabaseCount('delivery_outbox_messages', 2);
+        $this->assertDatabaseHas('delivery_outbox_messages', [
+            'message_type' => 'delivery.process',
+            'attempt_number' => 1,
+            'status' => 'pending',
+        ]);
     }
 
-    public function test_rollback_does_not_request_queue_publication(): void
+    public function test_rollback_removes_event_delivery_and_outbox_intent_together(): void
     {
         $first = $this->createEndpoint('First rollback endpoint');
         $second = $this->createEndpoint('Second rollback endpoint');
-        $queued = [];
-        $this->replaceQueue($queued);
-
         $this->app->instance(
             SubscriptionMatcher::class,
             new class($first, $second) implements SubscriptionMatcher
@@ -110,12 +131,12 @@ final class DeliveryQueueSchedulingTest extends TestCase
             self::assertSame('Forced delivery persistence failure.', $exception->getMessage());
         }
 
-        self::assertSame([], $queued);
         $this->assertDatabaseCount('events', 0);
         $this->assertDatabaseCount('deliveries', 0);
+        $this->assertDatabaseCount('delivery_outbox_messages', 0);
     }
 
-    public function test_known_queue_publication_failure_keeps_the_committed_event_and_delivery_and_returns_201(): void
+    public function test_redis_unavailability_cannot_affect_event_commit_because_create_event_does_not_publish_directly(): void
     {
         $endpointId = $this->createEndpoint('Unavailable queue endpoint');
         $this->replaceSubscriptions($endpointId, ['order.paid']);
@@ -140,10 +161,12 @@ final class DeliveryQueueSchedulingTest extends TestCase
 
         $this->assertDatabaseCount('events', 1);
         $this->assertDatabaseCount('deliveries', 1);
+        $this->assertDatabaseCount('delivery_outbox_messages', 1);
         $this->assertDatabaseHas('deliveries', ['status' => 'pending']);
+        $this->assertDatabaseHas('delivery_outbox_messages', ['status' => 'pending']);
     }
 
-    public function test_unknown_queue_errors_are_not_swallowed(): void
+    public function test_create_event_does_not_call_queue_even_when_the_queue_has_an_unknown_error(): void
     {
         $endpointId = $this->createEndpoint('Unknown queue failure endpoint');
         $this->replaceSubscriptions($endpointId, ['order.paid']);
@@ -164,42 +187,10 @@ final class DeliveryQueueSchedulingTest extends TestCase
             },
         );
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unexpected queue programming failure.');
-
         app(CreateEvent::class)->handle('order.paid', (object) ['source' => 'unknown-queue-failure-test']);
-    }
-
-    /**
-     * @param  list<string>  $queued
-     */
-    private function replaceQueue(array &$queued): void
-    {
-        $this->app->instance(
-            DeliveryQueue::class,
-            new class($queued) implements DeliveryQueue
-            {
-                /**
-                 * @param  list<string>  $queued
-                 */
-                public function __construct(array &$queued)
-                {
-                    $this->queued = &$queued;
-                }
-
-                /**
-                 * @var list<string>
-                 */
-                private array $queued;
-
-                public function enqueue(DeliveryId $deliveryId): void
-                {
-                    $this->queued[] = $deliveryId->toString();
-                }
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
-            },
-        );
+        $this->assertDatabaseCount('events', 1);
+        $this->assertDatabaseCount('deliveries', 1);
+        $this->assertDatabaseCount('delivery_outbox_messages', 1);
     }
 
     private function createEndpoint(string $name): string

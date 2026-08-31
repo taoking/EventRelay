@@ -6,9 +6,9 @@ namespace Tests\Unit\Application\Delivery;
 
 use App\Application\Clock\Clock;
 use App\Application\Delivery\ClaimedDelivery;
+use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryExecutionRepository;
 use App\Application\Delivery\DeliveryNotFound;
-use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryRepository;
 use App\Application\Delivery\DeliveryRetryPolicy;
 use App\Application\Delivery\ProcessPendingDelivery;
@@ -72,6 +72,8 @@ final class ProcessPendingDeliveryTest extends TestCase
 
                 public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void {}
 
+                public function finalizeAndScheduleRetry(Delivery $delivery, DeliveryAttempt $attempt, DeliveryExecutionIntent $intent): void {}
+
                 public function recoverStale(DeliveryId $deliveryId, \DateTimeImmutable $cutoff, \DateTimeImmutable $now, DeliveryRetryPolicy $policy): ?StaleRecoveryResult
                 {
                     return null;
@@ -114,12 +116,6 @@ final class ProcessPendingDeliveryTest extends TestCase
                 }
             },
             new DeliveryRetryPolicy,
-            new class implements DeliveryQueue
-            {
-                public function enqueue(DeliveryId $deliveryId): void {}
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
-            },
             new class implements Clock
             {
                 public function now(): \DateTimeImmutable
@@ -180,6 +176,8 @@ final class ProcessPendingDeliveryTest extends TestCase
 
                 public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void {}
 
+                public function finalizeAndScheduleRetry(Delivery $delivery, DeliveryAttempt $attempt, DeliveryExecutionIntent $intent): void {}
+
                 public function recoverStale(DeliveryId $deliveryId, \DateTimeImmutable $cutoff, \DateTimeImmutable $now, DeliveryRetryPolicy $policy): ?StaleRecoveryResult
                 {
                     return null;
@@ -222,12 +220,6 @@ final class ProcessPendingDeliveryTest extends TestCase
                 }
             },
             new DeliveryRetryPolicy,
-            new class implements DeliveryQueue
-            {
-                public function enqueue(DeliveryId $deliveryId): void {}
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
-            },
             new class implements Clock
             {
                 public function now(): \DateTimeImmutable

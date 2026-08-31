@@ -7,7 +7,6 @@ namespace Tests\Feature\Delivery;
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryExecutionRepository;
-use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\RecoverStaleDelivery;
 use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
@@ -28,20 +27,7 @@ final class StaleDeliveryRecoveryConcurrencyTest extends TestCase
 
         $now = new DateTimeImmutable('2026-08-31T12:00:00+00:00');
         $clock = new FrozenClock($now);
-        $scheduledFile = tempnam(sys_get_temp_dir(), 'eventrelay-stale-schedule-');
-        self::assertNotFalse($scheduledFile);
         $this->app->instance(Clock::class, $clock);
-        $this->app->instance(DeliveryQueue::class, new class($scheduledFile) implements DeliveryQueue
-        {
-            public function __construct(private readonly string $scheduledFile) {}
-
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                file_put_contents($this->scheduledFile, $deliveryId->toString()."\n", FILE_APPEND | LOCK_EX);
-            }
-        });
         $deliveryId = $this->createProcessingDelivery($now->modify('-60 seconds'));
         $firstPair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
         $secondPair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
@@ -85,11 +71,14 @@ final class StaleDeliveryRecoveryConcurrencyTest extends TestCase
             $this->reconnectAfterFork();
             $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'retry_scheduled']);
             $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 1, 'status' => 'abandoned']);
-            self::assertSame([$deliveryId], file($scheduledFile, FILE_IGNORE_NEW_LINES));
+            $this->assertDatabaseHas('delivery_outbox_messages', [
+                'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
+                'attempt_number' => 2,
+                'status' => 'pending',
+            ]);
         } finally {
             fclose($firstParent);
             fclose($secondParent);
-            unlink($scheduledFile);
         }
     }
 

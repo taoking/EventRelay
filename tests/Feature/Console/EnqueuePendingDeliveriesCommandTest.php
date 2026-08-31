@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Console;
 
-use App\Application\Delivery\DeliveryQueue;
+use App\Application\Clock\Clock;
+use App\Application\Delivery\DeliveryExecutionIntent;
+use App\Application\Delivery\DeliveryOutboxIntentFinder;
+use App\Application\Delivery\DeliveryOutboxRecovery;
 use App\Application\Delivery\EnqueuePendingDeliveries;
-use App\Application\Delivery\PendingDeliveryFinder;
 use App\Domain\Delivery\DeliveryId;
 use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
@@ -18,12 +20,12 @@ final class EnqueuePendingDeliveriesCommandTest extends TestCase
         $first = DeliveryId::fromString('5db4d301-f44a-4dab-a545-6f9046cbeb6f');
         $second = DeliveryId::fromString('6db4d301-f44a-4dab-a545-6f9046cbeb6f');
         $limits = [];
-        $queued = [];
+        $ensured = [];
 
         $this->app->instance(
             EnqueuePendingDeliveries::class,
             new EnqueuePendingDeliveries(
-                new class($first, $second, $limits) implements PendingDeliveryFinder
+                new class($first, $second, $limits) implements DeliveryOutboxIntentFinder
                 {
                     /**
                      * @param  list<int>  $limits
@@ -41,42 +43,57 @@ final class EnqueuePendingDeliveriesCommandTest extends TestCase
                      */
                     private array $limits;
 
-                    public function findPending(int $limit): array
+                    public function findPendingInitial(int $limit): array
                     {
                         $this->limits[] = $limit;
 
-                        return [$this->first, $this->second];
+                        return [
+                            new DeliveryExecutionIntent($this->first, 1, null),
+                            new DeliveryExecutionIntent($this->second, 1, null),
+                        ];
+                    }
+
+                    public function findDueRetries(\DateTimeImmutable $now, int $limit): array
+                    {
+                        return [];
                     }
                 },
-                new class($queued) implements DeliveryQueue
+                new class($ensured) implements DeliveryOutboxRecovery
                 {
                     /**
-                     * @param  list<string>  $queued
+                     * @param  list<string>  $ensured
                      */
-                    public function __construct(array &$queued)
+                    public function __construct(array &$ensured)
                     {
-                        $this->queued = &$queued;
+                        $this->ensured = &$ensured;
                     }
 
                     /**
                      * @var list<string>
                      */
-                    private array $queued;
+                    private array $ensured;
 
-                    public function enqueue(DeliveryId $deliveryId): void
+                    public function ensureRecoverable(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): bool
                     {
-                        $this->queued[] = $deliveryId->toString();
-                    }
+                        $this->ensured[] = $intent->deliveryId->toString();
 
-                    public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void {}
+                        return true;
+                    }
+                },
+                new class implements Clock
+                {
+                    public function now(): \DateTimeImmutable
+                    {
+                        return new \DateTimeImmutable('2026-09-02T12:00:00+00:00');
+                    }
                 },
             ),
         );
 
         self::assertSame(0, Artisan::call('deliveries:enqueue-pending', ['--limit' => '2']));
         self::assertSame([2], $limits);
-        self::assertSame([$first->toString(), $second->toString()], $queued);
-        self::assertStringContainsString('成功 2，发布失败 0', Artisan::output());
+        self::assertSame([$first->toString(), $second->toString()], $ensured);
+        self::assertStringContainsString('处理 2', Artisan::output());
     }
 
     public function test_the_command_rejects_invalid_recovery_limits(): void

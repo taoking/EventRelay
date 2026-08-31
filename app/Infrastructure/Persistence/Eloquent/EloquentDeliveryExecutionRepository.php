@@ -6,7 +6,9 @@ namespace App\Infrastructure\Persistence\Eloquent;
 
 use App\Application\Delivery\ClaimedDelivery;
 use App\Application\Delivery\DeliveryExecutionConflict;
+use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryExecutionRepository;
+use App\Application\Delivery\DeliveryOutboxWriter;
 use App\Application\Delivery\DeliveryRetryPolicy;
 use App\Application\Delivery\StaleRecoveryResult;
 use App\Domain\Delivery\Delivery;
@@ -25,6 +27,10 @@ use LogicException;
 
 final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepository
 {
+    public function __construct(
+        private readonly DeliveryOutboxWriter $outbox,
+    ) {}
+
     public function claim(DeliveryId $deliveryId, DateTimeImmutable $now): ?ClaimedDelivery
     {
         return DB::transaction(function () use ($deliveryId, $now): ?ClaimedDelivery {
@@ -82,7 +88,29 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
 
     public function finalize(Delivery $delivery, DeliveryAttempt $attempt): void
     {
-        DB::transaction(function () use ($delivery, $attempt): void {
+        $this->finalizeInTransaction($delivery, $attempt, null);
+    }
+
+    public function finalizeAndScheduleRetry(
+        Delivery $delivery,
+        DeliveryAttempt $attempt,
+        DeliveryExecutionIntent $intent,
+    ): void {
+        if ($intent->deliveryId->toString() !== $delivery->id()->toString()
+            || $intent->attemptNumber !== $attempt->number() + 1
+            || $intent->availableAt != $delivery->nextAttemptAt()) {
+            throw new LogicException('A retry execution intent must match the finalized delivery and next attempt.');
+        }
+
+        $this->finalizeInTransaction($delivery, $attempt, $intent);
+    }
+
+    private function finalizeInTransaction(
+        Delivery $delivery,
+        DeliveryAttempt $attempt,
+        ?DeliveryExecutionIntent $intent,
+    ): void {
+        DB::transaction(function () use ($delivery, $attempt, $intent): void {
             $deliveryRecord = DeliveryRecord::query()
                 ->where('public_id', $delivery->id()->toString())
                 ->lockForUpdate()
@@ -117,6 +145,10 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
                 'updated_at' => $delivery->updatedAt(),
             ]);
             $deliveryRecord->save();
+
+            if ($intent !== null) {
+                $this->outbox->schedule($intent, $delivery->updatedAt());
+            }
         });
     }
 
@@ -170,6 +202,13 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
                 'updated_at' => $recoveredDelivery->updatedAt(),
             ]);
             $deliveryRecord->save();
+
+            if ($nextAttemptAt !== null) {
+                $this->outbox->schedule(
+                    new DeliveryExecutionIntent($deliveryId, $attempt->number() + 1, $nextAttemptAt),
+                    $now,
+                );
+            }
 
             return new StaleRecoveryResult($recoveredDelivery, $abandoned, $nextAttemptAt);
         });

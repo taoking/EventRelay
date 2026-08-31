@@ -7,7 +7,6 @@ namespace Tests\Feature\Delivery;
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
 use App\Application\Delivery\DeliveryExecutionConflict;
-use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\RecoverStaleDelivery;
 use App\Application\Delivery\WebhookRequest;
@@ -36,9 +35,7 @@ final class StaleRecoveryLateFinalizeConcurrencyTest extends TestCase
         $recoveryAt = $startedAt->modify('+60 seconds');
         $deliveryId = $this->createPendingDelivery();
         $callsFile = tempnam(sys_get_temp_dir(), 'eventrelay-stale-late-call-');
-        $scheduledFile = tempnam(sys_get_temp_dir(), 'eventrelay-stale-late-schedule-');
         self::assertNotFalse($callsFile);
-        self::assertNotFalse($scheduledFile);
         $workerPair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
         self::assertNotFalse($workerPair);
         [$workerParent, $workerChild] = $workerPair;
@@ -67,7 +64,7 @@ final class StaleRecoveryLateFinalizeConcurrencyTest extends TestCase
             }
             if ($recoveryPid === 0) {
                 fclose($recoveryParent);
-                $this->runRecovery($deliveryId, $recoveryAt, $recoveryChild, $scheduledFile);
+                $this->runRecovery($deliveryId, $recoveryAt, $recoveryChild);
             }
 
             fclose($recoveryChild);
@@ -84,7 +81,6 @@ final class StaleRecoveryLateFinalizeConcurrencyTest extends TestCase
 
             $this->reconnectAfterFork();
             self::assertSame(['called'], file($callsFile, FILE_IGNORE_NEW_LINES));
-            self::assertSame([$deliveryId], file($scheduledFile, FILE_IGNORE_NEW_LINES));
             $this->assertDatabaseHas('deliveries', [
                 'public_id' => $deliveryId,
                 'status' => 'retry_scheduled',
@@ -96,10 +92,14 @@ final class StaleRecoveryLateFinalizeConcurrencyTest extends TestCase
                 'failure_type' => 'stale_processing',
             ]);
             self::assertSame(1, DB::table('delivery_attempts')->count());
+            $this->assertDatabaseHas('delivery_outbox_messages', [
+                'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
+                'attempt_number' => 2,
+                'status' => 'pending',
+            ]);
         } finally {
             fclose($workerParent);
             unlink($callsFile);
-            unlink($scheduledFile);
         }
     }
 
@@ -145,22 +145,11 @@ final class StaleRecoveryLateFinalizeConcurrencyTest extends TestCase
     }
 
     /** @return never-return */
-    private function runRecovery(string $deliveryId, DateTimeImmutable $recoveryAt, mixed $socket, string $scheduledFile): void
+    private function runRecovery(string $deliveryId, DateTimeImmutable $recoveryAt, mixed $socket): void
     {
         try {
             $this->reconnectAfterFork();
             app()->instance(Clock::class, new FrozenClock($recoveryAt));
-            app()->instance(DeliveryQueue::class, new class($scheduledFile) implements DeliveryQueue
-            {
-                public function __construct(private readonly string $scheduledFile) {}
-
-                public function enqueue(DeliveryId $deliveryId): void {}
-
-                public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-                {
-                    file_put_contents($this->scheduledFile, $deliveryId->toString()."\n", FILE_APPEND | LOCK_EX);
-                }
-            });
             $result = app(RecoverStaleDelivery::class)->handle(DeliveryId::fromString($deliveryId));
 
             if ($result === null) {

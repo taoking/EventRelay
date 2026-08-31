@@ -222,3 +222,9 @@
 - [x] 补齐 Redis/RabbitMQ、MySQL/Rabbit 并发、故障/confirm/redelivery、切换与安全回归。
 - [x] 在准确功能提交 `e38e980dc10f5152f9d9d54416e03e27736550a2` 上执行完整质量门、Docker R-01..R-05，并新增 repository-native `EVIDENCE.md`。
 - [ ] 单次 push、创建 Draft PR 并等待 GitHub CI；Independent Review 前保持 `INCOMPLETE`。
+
+### PR #29 Independent Review #1 — RabbitMQ/Outbox Worker 生命周期整改
+
+- [x] 读取 `REMEDIATION-01.md`，在 `18518756bf33ec45dc9ee65f68d2a3381bfb1410` 完成 M-01（连续 Rabbit consumer idle timeout/终止）和 L-01（Outbox Worker stop）最小修复与真实子进程/barrier 回归。
+- [x] 在精确代码 HEAD 完成本机/Docker quality、Docker Rabbit/MySQL/Redis 专项，以及 R-06 continuous lifecycle 和 R-07 graceful stop；细节见 `EVIDENCE.md`。
+- [ ] 创建仅证据/计划/记录提交后进行一次 push，更新现有 Draft PR #29 并等待 CI；Independent Review #2 前保持 `INCOMPLETE`。

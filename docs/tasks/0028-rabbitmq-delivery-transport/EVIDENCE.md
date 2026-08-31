@@ -81,3 +81,65 @@
 - 风险：仍为 `at-least-once`。Broker publish/consumer crash、lease 到期和 broker state loss 都可能给出重复 Delivery UUID；receiver 仍应使用稳定 Delivery ID 做去重。
 - 风险：Docker 的 quorum queue 是单节点协议/行为验证，不代表多节点 RabbitMQ HA 部署。
 - NOT RUN：GitHub CI、Draft PR、Independent Review、生产 daemon/scheduler 部署。未实现 delayed-message plugin、Broker business retry、broker DLQ、dual write、XA/2PC 或 exactly-once。
+
+## Independent Review #1 Remediation
+
+- Review ID：`5067567804`。
+- `validated_implementation_head`：`e38e980dc10f5152f9d9d54416e03e27736550a2`（保留）。
+- `validated_remediation_head`：`18518756bf33ec45dc9ee65f68d2a3381bfb1410`。
+
+### M-01 — Continuous RabbitMQ consumer
+
+- 根因：连续 consumer 把空队列有界 `wait()` 抛出的 `AMQPTimeoutException` 当作未处理异常；另外，终止状态的按值捕获不能反映信号回调的更新。
+- 修复：仅在 continuous idle `wait()` 边界捕获 `AMQPTimeoutException` 并进入下一 tick；其它 AMQP、processor 与编程异常不捕获。SIGTERM/SIGINT 在有界等待中延后派发，并由按引用停止回调在下一循环前结束 consumer；不扩大为 `Throwable` 捕获。
+- 回归：真实 RabbitMQ/MySQL/`pcntl_fork` lifecycle test 在一个子进程中完成：空闲超过两个 1 秒 wait timeout 后仍存活、随后由同一 consumer 消费、SIGTERM 后成功退出；未知 `LogicException` 不 ACK，Broker redelivery 后仍只有一个 Attempt。
+- 状态：`PASS`。
+
+### L-01 — Outbox Worker graceful stop
+
+- 根因：循环只在 publication batch 后检查 stop；idle sleep 期间收到 SIGTERM/SIGINT 后，下一轮可能直接启动新的 `PublishDeliveryOutbox::handle()`。
+- 修复：每个 cycle 前和当前 cycle 后都检查显式 stop state；stop state 派发待处理信号。`OutboxWorkerSleeper` 仅为确定性测试 barrier，生产绑定继续调用系统 `sleep()`；未知 publisher 异常继续传播。
+- 回归：两个 child process + socket barrier 分别锁住 idle sleep 和 batch 内信号。两种场景均为一个 cycle、成功退出、无第二 cycle；`--once`、limit/sleep 校验及未知异常回归同时通过。
+- 状态：`PASS`。
+
+### Docker Runtime R-06 — Continuous Rabbit consumer lifecycle
+
+- `PASS`。`migrate:fresh` 与 Rabbit queue purge 后，创建 committed Outbox `d418533c-99ae-45df-b885-a065cb41eaed` 对应 Delivery `99eb2674-dba8-42d8-beef-83cc0ce41dcd`。连续 Console Kernel consumer PID `1230` 在空队列中 idle 3 秒后仍为存活状态；Rabbit queue 为 `messages=0, consumers=1`。
+- 以 Rabbit transport 运行 `outbox:publish --limit=100` 输出 `成功 1，传输层发布失败 0，lease 已丢失 0`。同一 PID consumer 完成后 Delivery=`succeeded`，Attempt count=`1`、Attempt status=`succeeded`，Rabbit queue 为 `messages=0, consumers=1`。
+- SIGTERM 后 Console Kernel 进程 exit status=`0`；Broker 最终为 `messages=0, consumers=0`。运行时 resolver/HTTP transport 仅在该 PHP process 注入，未修改生产配置、源码或安全策略。未记录 Event payload、target URL、secret 或 Idempotency-Key。
+
+### Docker Runtime R-07 — Outbox Worker graceful stop
+
+- `PASS`。真实 Docker Console Kernel worker PID `1266` 运行 `outbox:work --sleep=30 --limit=1`；首轮输出 `成功 0，传输层发布失败 0，lease 已丢失 0` 后进入 idle sleep。
+- 向 idle worker 发送 SIGTERM，exit status=`0`，会话中只观察到该一个 publication cycle；没有第二次 claim/publication。确定性 child/socket barrier regression 另行验证了 idle 与 batch 内两个时序。
+
+### 自动化与 Issue #28 AC 复核
+
+| 验证 | 状态 | 结果 |
+|---|---|---|
+| Docker targeted 回归 | PASS | 27 个指定文件，131 tests / 974 assertions；Rabbit、Outbox、Redis、Retry/Stale、Replay、Ingress、DLQ、HMAC、SSRF、MySQL 并发均实际运行。 |
+| `composer quality` | PASS | Pint、PHPStan、Deptrac、negative validation；235 tests，196 passed，1198 assertions，39 个外部服务相关测试在本机跳过。 |
+| `docker compose exec -T app composer quality` | PASS | Pint、PHPStan、Deptrac、negative validation；235 passed / 1645 assertions，RabbitMQ/MySQL/Redis integration 未跳过。 |
+| Self Review | PASS | M-01 仅处理 `AMQPTimeoutException`；未知异常未吞；L-01 在 cycle 前/后均检查 stop；未改变 topology、Retry、Outbox truth、HMAC 或 SSRF。 |
+
+| Issue #28 AC | 状态 | 本轮复核 |
+|---|---|---|
+| AC-01 | PASS | MySQL due gate 与 Rabbit due timing回归。 |
+| AC-02 | PASS | UUID-only immediate `DeliveryTransport` 与 short transaction boundary 未变。 |
+| AC-03 | PASS | Redis 默认 transport integration 通过。 |
+| AC-04 | PASS | Rabbit durable direct/quorum/persistent envelope 真实回归通过。 |
+| AC-05 | PASS | confirm、mandatory、known/unknown failure 回归通过。 |
+| AC-06 | PASS | R-06 连续 idle→same consumer→consume→SIGTERM 真实证据。 |
+| AC-07 | PASS | Consumer crash/redelivery/stale recovery 回归通过。 |
+| AC-08 | PASS | R-07、idle/batch signal barrier 与 command contract 回归。 |
+| AC-09 | PASS | Redis/Rabbit outage durable Outbox 回归通过。 |
+| AC-10 | PASS | confirm 后 lease replay 的 at-least-once duplicate 回归通过。 |
+| AC-11 | PASS | Retry 10s/60s、最大三次与 Rabbit timing 回归通过。 |
+| AC-12 | PASS | transport switch 无 dual-write 回归通过。 |
+| AC-13 | PASS | UUID-only payload、HMAC/SSRF 安全回归通过。 |
+| AC-14 | PASS | Docker MySQL/Redis/RabbitMQ lifecycle 与完整质量门通过；本次推送后的 GitHub CI 将在 PR metadata 更新。 |
+| AC-15 | PASS | 本机与 Docker quality 均通过。 |
+| AC-16 | PASS | 整改合同、代码提交、Evidence 与 Draft PR 流程已完成；CI 结果将在推送后只更新 PR Body。 |
+
+- 风险：仍是 `at-least-once`；confirm/mark 间崩溃、lease expiry 与 Broker 状态丢失仍可能重复 Delivery UUID。Delivery atomic claim 与 receiver 的 Delivery ID 去重仍是边界。
+- Independent Review #2：`NOT RUN`。

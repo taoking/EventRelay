@@ -194,3 +194,12 @@
 - [x] 调整同一 MySQL transaction 内的锁定 current read 顺序，补齐 disabled、soft-delete 与配置变更回归。
 - [x] 执行专项、双环境质量门与 Docker/MySQL R-01，保存 repository-native evidence。
 - [x] 提交、推送、同步 Draft PR #23 的 CI；Independent Review #2 前状态保持 `INCOMPLETE`。
+
+## Issue #24：Event Ingress Idempotency
+
+- [x] 确认 `main@78ace320b0dc49ebb600381b5802e5c5eaca5e41`、post-merge CI run `33359084169` 为 PASS，且 Issue #22 已关闭、Issue #24 保持开放；创建 `feature/event-ingress-idempotency`。
+- [x] 阅读唯一执行合同、必读规范、Event/Delivery/Outbox/Replay 代码与现有并发测试，确定 Event graph、ingress binding 与 Outbox 的单一 MySQL 事务边界。
+- [x] 实现可选 `Idempotency-Key`、摘要/指纹、binding 持久化与重复请求 winner 恢复。
+- [x] 添加 API、原子性、MySQL 双进程并发、配置稳定性与泄漏回归。
+- [x] 在 validated implementation head `1f1bab579af9713e3c470de772b307923fee611a` 完成本机/Docker 质量门和 R-01/R-02 Runtime。
+- [x] 创建仅含证据与计划的提交；待单次推送、建立 Draft PR、等待 CI。Independent Review 前保持 `INCOMPLETE`。

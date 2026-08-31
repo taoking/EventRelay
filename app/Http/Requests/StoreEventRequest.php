@@ -65,6 +65,17 @@ final class StoreEventRequest extends FormRequest
         return $payload;
     }
 
+    public function idempotencyKey(): ?string
+    {
+        if (! $this->hasHeader('Idempotency-Key')) {
+            return null;
+        }
+
+        $value = $this->header('Idempotency-Key');
+
+        return is_string($value) ? $value : '';
+    }
+
     private function rawPayload(): mixed
     {
         try {

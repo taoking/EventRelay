@@ -355,6 +355,31 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         }
     }
 
+    public function test_real_redis_payload_does_not_contain_the_raw_event_ingress_idempotency_key(): void
+    {
+        $this->requireMySqlAndRedis();
+        $this->clearDeliveriesQueue();
+
+        $endpointId = $this->createEndpoint('Event ingress key leak endpoint');
+        $this->replaceSubscriptions($endpointId, ['order.paid']);
+        $rawKey = 'event-ingress-redis-key-leak-fixture';
+        $eventId = (string) $this->postJson('/api/events', [
+            'type' => 'order.paid',
+            'payload' => (object) ['source' => 'event-ingress-redis-key-leak'],
+        ], ['Idempotency-Key' => $rawKey])->assertCreated()->json('data.id');
+        $deliveryId = $this->deliveryIdForEvent($eventId);
+
+        try {
+            self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
+            $payload = (string) Redis::connection()->lIndex('queues:deliveries', 0);
+
+            self::assertStringContainsString($deliveryId, $payload);
+            self::assertStringNotContainsString($rawKey, $payload);
+        } finally {
+            $this->clearDeliveriesQueue();
+        }
+    }
+
     private function replaceDispatcherWithServerFailure(): Dispatcher
     {
         $originalDispatcher = app(Dispatcher::class);

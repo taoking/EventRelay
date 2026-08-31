@@ -161,7 +161,8 @@
 
 - [x] 确认 `main@f9a4a40d51e9bfddc94623f27bcfb184efb6354c`、post-merge CI run `33331233576`、PR #19 已合并、Issue #18 已关闭且 Issue #20 仍开放；创建 `feature/transactional-outbox`。
 - [x] 阅读 Issue、必读规范、开发记录、现有 Queue / Retry / Stale / HMAC 实现，并确定采用“Outbox 可提前发布延迟 Redis Job”的 `available_at` 模型：MySQL `next_attempt_at` 仍为业务时间事实源。
-- [ ] 建立最小 Outbox schema、执行 intent 去重与 Application 持久化契约；将初始 Delivery、Retry 与 stale recovery 的 intent 写入同一业务事务。
-- [ ] 实现有界、稳定排序、claim/lease 的 Outbox Publisher 与 `outbox:publish` 命令，并将旧 pending/due recovery 命令迁移为确保 durable intent 的路径。
-- [ ] 添加 MySQL/Redis 原子性、双 Publisher 并发、lease crash recovery、已知 Redis 故障与既有安全回归测试；保存 Issue / Prompt 完整原文。
-- [ ] 执行本机与 Docker 质量门、Docker Runtime A/B/C，提交、推送、创建 Draft PR、等待 CI；Independent Review 前保持 `INCOMPLETE`。
+- [x] 建立最小 Outbox schema、执行 intent 去重与 Application 持久化契约；将初始 Delivery、Retry 与 stale recovery 的 intent 写入同一业务事务。
+- [x] 实现有界、稳定排序、claim/lease 的 Outbox Publisher 与 `outbox:publish` 命令，并将旧 pending/due recovery 命令迁移为确保 durable intent 的路径。
+- [x] 添加 MySQL/Redis 原子性、双 Publisher 并发、lease crash recovery、已知 Redis 故障与既有安全回归测试；保存 Issue / Prompt 完整原文。
+- [x] 执行本机与 Docker 质量门、Docker Runtime A/B/C。
+- [ ] 提交最终运行证据、推送、创建 Draft PR、等待 CI；Independent Review 前保持 `INCOMPLETE`。

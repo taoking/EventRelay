@@ -45,6 +45,7 @@ final class DeliveryTest extends TestCase
             $endpointId,
             'https://receiver.example/webhook',
             null,
+            null,
             DeliveryStatus::Pending,
             $createdAt,
             $updatedAt,

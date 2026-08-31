@@ -18,6 +18,7 @@ final readonly class Delivery
         private EndpointId $endpointId,
         private string $targetUrl,
         private ?EndpointSigningSecretId $signingSecretId,
+        private ?DeliveryId $replayOfDeliveryId,
         private DeliveryStatus $status,
         private ?DateTimeImmutable $nextAttemptAt,
         private DateTimeImmutable $createdAt,
@@ -42,6 +43,30 @@ final readonly class Delivery
             $endpointId,
             $targetUrl,
             $signingSecretId,
+            null,
+            DeliveryStatus::Pending,
+            null,
+            $now,
+            $now,
+        );
+    }
+
+    public static function replay(
+        EventId $eventId,
+        EndpointId $endpointId,
+        string $targetUrl,
+        DeliveryId $replayOfDeliveryId,
+        ?EndpointSigningSecretId $signingSecretId = null,
+    ): self {
+        $now = new DateTimeImmutable;
+
+        return new self(
+            DeliveryId::generate(),
+            $eventId,
+            $endpointId,
+            $targetUrl,
+            $signingSecretId,
+            $replayOfDeliveryId,
             DeliveryStatus::Pending,
             null,
             $now,
@@ -55,6 +80,7 @@ final readonly class Delivery
         EndpointId $endpointId,
         string $targetUrl,
         ?EndpointSigningSecretId $signingSecretId,
+        ?DeliveryId $replayOfDeliveryId,
         DeliveryStatus $status,
         DateTimeInterface $createdAt,
         DateTimeInterface $updatedAt,
@@ -66,6 +92,7 @@ final readonly class Delivery
             $endpointId,
             $targetUrl,
             $signingSecretId,
+            $replayOfDeliveryId,
             $status,
             $nextAttemptAt === null ? null : DateTimeImmutable::createFromInterface($nextAttemptAt),
             DateTimeImmutable::createFromInterface($createdAt),
@@ -96,6 +123,11 @@ final readonly class Delivery
     public function signingSecretId(): ?EndpointSigningSecretId
     {
         return $this->signingSecretId;
+    }
+
+    public function replayOfDeliveryId(): ?DeliveryId
+    {
+        return $this->replayOfDeliveryId;
     }
 
     public function status(): DeliveryStatus
@@ -163,6 +195,7 @@ final readonly class Delivery
             $this->endpointId,
             $this->targetUrl,
             $this->signingSecretId,
+            $this->replayOfDeliveryId,
             $next,
             $nextAttemptAt === null ? null : DateTimeImmutable::createFromInterface($nextAttemptAt),
             $this->createdAt,

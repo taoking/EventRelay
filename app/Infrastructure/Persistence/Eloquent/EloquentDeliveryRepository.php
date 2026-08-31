@@ -4,22 +4,32 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence\Eloquent;
 
+use App\Application\Delivery\DeliveryExecutionIntent;
+use App\Application\Delivery\DeliveryNotFound;
+use App\Application\Delivery\DeliveryNotReplayable;
+use App\Application\Delivery\DeliveryOutboxWriter;
+use App\Application\Delivery\DeliveryReplayCreator;
 use App\Application\Delivery\DeliveryRepository;
 use App\Application\Delivery\DeliverySnapshotCreator;
+use App\Application\Delivery\ReplayDeliveryCreation;
+use App\Application\Delivery\ReplayEndpointUnavailable;
 use App\Application\Endpoint\EndpointNotFound;
 use App\Application\Event\EventNotFound;
 use App\Domain\Delivery\Delivery;
 use App\Domain\Delivery\DeliveryId;
 use App\Domain\Delivery\DeliveryStatus;
 use App\Domain\Endpoint\EndpointId;
+use App\Domain\Endpoint\EndpointStatus;
 use App\Domain\EndpointSigningSecret\EndpointSigningSecretId;
 use App\Domain\Event\EventId;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
-final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySnapshotCreator
+final class EloquentDeliveryRepository implements DeliveryReplayCreator, DeliveryRepository, DeliverySnapshotCreator
 {
+    public function __construct(private readonly DeliveryOutboxWriter $outbox) {}
+
     /** Retained for the existing internal persistence contract. */
     public function createOrGet(Delivery $delivery): Delivery
     {
@@ -100,6 +110,7 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
                 'public_id' => $delivery->id()->toString(),
                 'event_id' => $eventId,
                 'endpoint_id' => $endpointId,
+                'creation_key' => 'primary',
                 'target_url' => $targetUrl,
                 'signing_secret_id' => $signingSecretId,
                 'status' => $delivery->status()->value,
@@ -118,6 +129,7 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
             $existing = DeliveryRecord::query()
                 ->where('event_id', $eventId)
                 ->where('endpoint_id', $endpointId)
+                ->where('creation_key', 'primary')
                 ->lockForUpdate()
                 ->first();
             if ($existing !== null) {
@@ -125,6 +137,60 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
             }
             throw $exception;
         }
+    }
+
+    public function createReplay(DeliveryId $sourceDeliveryId, string $creationKey, \DateTimeImmutable $now): ReplayDeliveryCreation
+    {
+        return DB::transaction(function () use ($sourceDeliveryId, $creationKey, $now): ReplayDeliveryCreation {
+            $source = DeliveryRecord::query()->where('public_id', $sourceDeliveryId->toString())->lockForUpdate()->first();
+            if ($source === null) {
+                throw new DeliveryNotFound($sourceDeliveryId->toString());
+            }
+            if ($source->status !== DeliveryStatus::Failed->value) {
+                throw new DeliveryNotReplayable('Only failed deliveries can be replayed.');
+            }
+            $endpoint = EndpointRecord::query()->whereKey($source->endpoint_id)->lockForUpdate()->first();
+            if ($endpoint === null || $endpoint->status !== EndpointStatus::Active->value) {
+                throw new ReplayEndpointUnavailable('The replay endpoint is unavailable.');
+            }
+
+            $existing = DeliveryRecord::query()
+                ->where('event_id', $source->event_id)
+                ->where('endpoint_id', $source->endpoint_id)
+                ->where('creation_key', $creationKey)
+                ->lockForUpdate()
+                ->first();
+            if ($existing !== null) {
+                return new ReplayDeliveryCreation($this->toDomain($existing), false);
+            }
+
+            $secretId = $this->currentSigningSecretId($endpoint);
+            $eventId = EventId::fromString($this->eventPublicId($source->event_id));
+            $endpointId = EndpointId::fromString($endpoint->public_id);
+            $delivery = Delivery::replay($eventId, $endpointId, $endpoint->url, $sourceDeliveryId, $secretId === null ? null : EndpointSigningSecretId::fromString($this->signingSecretPublicId($secretId)));
+            try {
+                $record = new DeliveryRecord;
+                $record->fill([
+                    'public_id' => $delivery->id()->toString(), 'event_id' => $source->event_id, 'endpoint_id' => $endpoint->getKey(),
+                    'creation_key' => $creationKey, 'replay_of_delivery_id' => $source->getKey(), 'target_url' => $endpoint->url,
+                    'signing_secret_id' => $secretId, 'status' => DeliveryStatus::Pending->value, 'created_at' => $now, 'updated_at' => $now,
+                ]);
+                $record->save();
+            } catch (QueryException $exception) {
+                if (! $this->isDeliveryCreationUniqueViolation($exception)) {
+                    throw $exception;
+                }
+                $record = DeliveryRecord::query()->where('event_id', $source->event_id)->where('endpoint_id', $source->endpoint_id)->where('creation_key', $creationKey)->lockForUpdate()->first();
+                if ($record === null) {
+                    throw $exception;
+                }
+
+                return new ReplayDeliveryCreation($this->toDomain($record), false);
+            }
+            $this->outbox->schedule(new DeliveryExecutionIntent($delivery->id(), 1, null), $now);
+
+            return new ReplayDeliveryCreation($this->toDomain($record->refresh()), true);
+        });
     }
 
     private function internalEventId(EventId $eventId): int
@@ -159,11 +225,35 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
             EndpointId::fromString($this->endpointPublicId($record->endpoint_id)),
             $record->target_url,
             $record->signing_secret_id === null ? null : EndpointSigningSecretId::fromString($this->signingSecretPublicId($record->signing_secret_id)),
+            $record->replay_of_delivery_id === null ? null : DeliveryId::fromString($this->replaySourcePublicId($record->replay_of_delivery_id)),
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,
             $record->next_attempt_at,
         );
+    }
+
+    private function replaySourcePublicId(int $internalId): string
+    {
+        $record = DeliveryRecord::query()->find($internalId);
+        if ($record === null) {
+            throw new LogicException('Persisted replay source is missing.');
+        }
+
+        return $record->public_id;
+    }
+
+    private function currentSigningSecretId(EndpointRecord $endpoint): ?int
+    {
+        if ($endpoint->current_signing_secret_id === null) {
+            return null;
+        }
+        $secret = EndpointSigningSecretRecord::query()->whereKey($endpoint->current_signing_secret_id)->lockForUpdate()->first();
+        if ($secret === null || (int) $secret->endpoint_id !== (int) $endpoint->getKey()) {
+            throw new ReplayEndpointUnavailable('The replay endpoint signing configuration is unavailable.');
+        }
+
+        return (int) $secret->getKey();
     }
 
     private function eventPublicId(int $eventId): string
@@ -220,7 +310,13 @@ final class EloquentDeliveryRepository implements DeliveryRepository, DeliverySn
     {
         $message = $exception->getMessage();
 
-        return str_contains($message, 'deliveries_event_id_endpoint_id_unique')
-            || str_contains($message, 'UNIQUE constraint failed: deliveries.event_id, deliveries.endpoint_id');
+        return str_contains($message, 'deliveries_event_id_endpoint_id_creation_key_unique')
+            || str_contains($message, 'UNIQUE constraint failed: deliveries.event_id, deliveries.endpoint_id, deliveries.creation_key');
+    }
+
+    private function isDeliveryCreationUniqueViolation(QueryException $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'deliveries_event_id_endpoint_id_creation_key_unique')
+            || str_contains($exception->getMessage(), 'UNIQUE constraint failed: deliveries.event_id, deliveries.endpoint_id, deliveries.creation_key');
     }
 }

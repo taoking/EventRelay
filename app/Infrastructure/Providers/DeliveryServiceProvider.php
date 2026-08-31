@@ -10,6 +10,7 @@ use App\Application\Delivery\DeliveryOutboxIntentFinder;
 use App\Application\Delivery\DeliveryOutboxPublisherRepository;
 use App\Application\Delivery\DeliveryOutboxRecovery;
 use App\Application\Delivery\DeliveryOutboxWriter;
+use App\Application\Delivery\DeliveryReplayCreator;
 use App\Application\Delivery\DeliveryRepository;
 use App\Application\Delivery\DeliverySnapshotCreator;
 use App\Application\Delivery\DueRetryFinder;
@@ -33,6 +34,7 @@ final class DeliveryServiceProvider extends ServiceProvider
     {
         $this->app->singleton(Clock::class, SystemClock::class);
         $this->app->bind(DeliveryRepository::class, EloquentDeliveryRepository::class);
+        $this->app->bind(DeliveryReplayCreator::class, EloquentDeliveryRepository::class);
         $this->app->bind(DeliverySnapshotCreator::class, EloquentDeliveryRepository::class);
         $this->app->bind(DeliveryExecutionRepository::class, EloquentDeliveryExecutionRepository::class);
         $this->app->bind(DeliveryOutboxWriter::class, EloquentDeliveryOutboxWriter::class);

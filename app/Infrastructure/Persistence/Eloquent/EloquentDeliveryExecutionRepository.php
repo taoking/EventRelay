@@ -247,6 +247,7 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
             EndpointId::fromString($endpointId),
             $record->target_url,
             $record->signing_secret_id === null ? null : EndpointSigningSecretId::fromString($this->signingSecretPublicId($record->signing_secret_id)),
+            $record->replay_of_delivery_id === null ? null : DeliveryId::fromString($this->replaySourcePublicId($record->replay_of_delivery_id)),
             DeliveryStatus::from($record->status),
             $record->created_at,
             $record->updated_at,
@@ -276,6 +277,16 @@ final class EloquentDeliveryExecutionRepository implements DeliveryExecutionRepo
 
         if ($record === null) {
             throw new LogicException('Persisted signing-secret reference is missing.');
+        }
+
+        return $record->public_id;
+    }
+
+    private function replaySourcePublicId(int $internalId): string
+    {
+        $record = DeliveryRecord::query()->find($internalId);
+        if ($record === null) {
+            throw new LogicException('Persisted replay source is missing.');
         }
 
         return $record->public_id;

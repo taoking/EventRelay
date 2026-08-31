@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\DeliveryController;
 use App\Http\Controllers\Api\DeadLetterController;
+use App\Http\Controllers\Api\DeliveryController;
 use App\Http\Controllers\Api\EndpointController;
 use App\Http\Controllers\Api\EndpointSigningSecretController;
 use App\Http\Controllers\Api\EndpointSubscriptionController;

@@ -165,4 +165,5 @@
 - [x] 实现有界、稳定排序、claim/lease 的 Outbox Publisher 与 `outbox:publish` 命令，并将旧 pending/due recovery 命令迁移为确保 durable intent 的路径。
 - [x] 添加 MySQL/Redis 原子性、双 Publisher 并发、lease crash recovery、已知 Redis 故障与既有安全回归测试；保存 Issue / Prompt 完整原文。
 - [x] 执行本机与 Docker 质量门、Docker Runtime A/B/C。
-- [ ] 提交最终运行证据、推送、创建 Draft PR、等待 CI；Independent Review 前保持 `INCOMPLETE`。
+- [x] 提交最终运行证据、推送、创建 Draft PR #21，并确认 GitHub Actions run `33344487442` 为 PASS。
+- [ ] Independent Review：NOT RUN；在其完成前保持 `INCOMPLETE`，不得自行 Merge。

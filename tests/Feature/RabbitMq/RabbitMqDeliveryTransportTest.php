@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\RabbitMq;
 
+use App\Application\Clock\Clock;
 use App\Application\Delivery\DeliveryTransport;
 use App\Application\Delivery\DeliveryTransportUnavailable;
 use App\Application\Delivery\PublishDeliveryOutbox;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
+use Tests\Support\FrozenClock;
 use Tests\TestCase;
 
 final class RabbitMqDeliveryTransportTest extends TestCase
@@ -147,6 +149,67 @@ final class RabbitMqDeliveryTransportTest extends TestCase
         self::assertSame(1, $sent);
         $this->assertDatabaseCount('delivery_attempts', 1);
         $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'succeeded']);
+    }
+
+    public function test_rabbit_physical_publication_respects_the_mysql_retry_due_times_and_maximum_attempt_budget(): void
+    {
+        $this->requireMySqlAndRabbitMq();
+        $this->purgeQueue();
+        $this->useRabbitTransport();
+        $clock = new FrozenClock(new \DateTimeImmutable('2026-09-10T12:00:00+00:00'));
+        $this->app->instance(Clock::class, $clock);
+        $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
+        {
+            public function resolve(string $url): WebhookTarget
+            {
+                return new WebhookTarget($url, 'receiver.example', 443, '1.1.1.1');
+            }
+        });
+        $this->app->instance(WebhookTransport::class, new class implements WebhookTransport
+        {
+            private int $calls = 0;
+
+            public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+            {
+                $this->calls++;
+
+                return new WebhookResponse($this->calls === 3 ? 200 : 500, 1);
+            }
+        });
+        $deliveryId = $this->createPendingDelivery();
+
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(1, $this->queueMessageCount());
+        self::assertSame(0, Artisan::call('deliveries:consume-rabbitmq', ['--once' => true]));
+        $firstDue = new \DateTimeImmutable('2026-09-10T12:00:10+00:00');
+        $this->assertDatabaseHas('deliveries', [
+            'public_id' => $deliveryId,
+            'status' => 'retry_scheduled',
+            'next_attempt_at' => $firstDue,
+        ]);
+
+        $clock->set(new \DateTimeImmutable('2026-09-10T12:00:09+00:00'));
+        self::assertSame(0, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(0, $this->queueMessageCount());
+        $clock->set($firstDue);
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(1, $this->queueMessageCount());
+        self::assertSame(0, Artisan::call('deliveries:consume-rabbitmq', ['--once' => true]));
+
+        $secondDue = new \DateTimeImmutable('2026-09-10T12:01:10+00:00');
+        $clock->set(new \DateTimeImmutable('2026-09-10T12:01:09+00:00'));
+        self::assertSame(0, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(0, $this->queueMessageCount());
+        $clock->set($secondDue);
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(1, $this->queueMessageCount());
+        self::assertSame(0, Artisan::call('deliveries:consume-rabbitmq', ['--once' => true]));
+
+        $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'succeeded', 'next_attempt_at' => null]);
+        $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 1, 'status' => 'failed', 'response_status' => 500]);
+        $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 2, 'status' => 'failed', 'response_status' => 500]);
+        $this->assertDatabaseHas('delivery_attempts', ['attempt_number' => 3, 'status' => 'succeeded', 'response_status' => 200]);
+        $this->assertDatabaseCount('delivery_attempts', 3);
     }
 
     public function test_invalid_transport_configuration_fails_when_the_transport_is_resolved(): void

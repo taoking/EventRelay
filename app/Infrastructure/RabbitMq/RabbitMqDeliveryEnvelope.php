@@ -20,7 +20,14 @@ final readonly class RabbitMqDeliveryEnvelope
             throw new InvalidRabbitMqDeliveryEnvelope('The RabbitMQ delivery envelope is not valid JSON.', 0, $exception);
         }
 
-        if (! is_array($decoded) || array_is_list($decoded) || array_keys($decoded) !== ['v', 'type', 'delivery_id']) {
+        if (! is_array($decoded) || array_is_list($decoded)) {
+            throw new InvalidRabbitMqDeliveryEnvelope('The RabbitMQ delivery envelope has an invalid shape.');
+        }
+
+        $keys = array_keys($decoded);
+        sort($keys);
+
+        if ($keys !== ['delivery_id', 'type', 'v']) {
             throw new InvalidRabbitMqDeliveryEnvelope('The RabbitMQ delivery envelope has an invalid shape.');
         }
 

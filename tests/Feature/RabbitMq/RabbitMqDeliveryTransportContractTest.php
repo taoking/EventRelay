@@ -78,6 +78,10 @@ final class RabbitMqDeliveryTransportContractTest extends TestCase
             $deliveryId,
             RabbitMqDeliveryEnvelope::fromBody('{"v":1,"type":"delivery.process","delivery_id":"'.$deliveryId.'"}')->deliveryId->toString(),
         );
+        self::assertSame(
+            $deliveryId,
+            RabbitMqDeliveryEnvelope::fromBody('{"delivery_id":"'.$deliveryId.'","type":"delivery.process","v":1}')->deliveryId->toString(),
+        );
 
         $this->expectException(InvalidRabbitMqDeliveryEnvelope::class);
         RabbitMqDeliveryEnvelope::fromBody('{"v":1,"type":"delivery.process","delivery_id":"'.$deliveryId.'","payload":{}}');

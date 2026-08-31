@@ -67,20 +67,17 @@ final class EloquentDeadLetterQueryRepository implements DeadLetterQueryReposito
             $this->applyCursor($query, $cursor);
         }
 
+        $query->orderByDesc('latest_attempt.finished_at');
         if (DB::connection()->getDriverName() === 'mysql') {
             $query->orderByRaw('BINARY deliveries.public_id DESC');
         } else {
             $query->orderByDesc('deliveries.public_id');
         }
 
-        return array_values(array_map(
-            $this->toItem(...),
-            $query
-                ->orderByDesc('latest_attempt.finished_at')
-                ->limit($filter->limit + 1)
-                ->get()
-                ->all(),
-        ));
+        return array_values(array_map($this->toItem(...), $query
+            ->limit($filter->limit + 1)
+            ->get()
+            ->all()));
     }
 
     private function applyFilters(Builder $query, DeadLetterFilter $filter): void

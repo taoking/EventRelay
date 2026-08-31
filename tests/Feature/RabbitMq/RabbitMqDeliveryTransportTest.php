@@ -112,6 +112,43 @@ final class RabbitMqDeliveryTransportTest extends TestCase
         self::assertNotSame('', $deliveryId);
     }
 
+    public function test_duplicate_confirmed_rabbit_messages_are_absorbed_by_the_delivery_claim_before_a_second_http_execution(): void
+    {
+        $this->requireMySqlAndRabbitMq();
+        $this->purgeQueue();
+        $this->useRabbitTransport();
+        $sent = 0;
+        $this->app->instance(WebhookTargetResolver::class, new class implements WebhookTargetResolver
+        {
+            public function resolve(string $url): WebhookTarget
+            {
+                return new WebhookTarget($url, 'receiver.example', 443, '1.1.1.1');
+            }
+        });
+        $this->app->instance(WebhookTransport::class, new class($sent) implements WebhookTransport
+        {
+            public function __construct(private int &$sent) {}
+
+            public function send(WebhookTarget $target, WebhookRequest $request): WebhookResponse
+            {
+                $this->sent++;
+
+                return new WebhookResponse(200, 1);
+            }
+        });
+        $deliveryId = $this->createPendingDelivery();
+
+        app(DeliveryTransport::class)->publish(DeliveryId::fromString($deliveryId));
+        app(DeliveryTransport::class)->publish(DeliveryId::fromString($deliveryId));
+
+        self::assertSame(2, $this->queueMessageCount());
+        self::assertSame(0, Artisan::call('deliveries:consume-rabbitmq', ['--once' => true]));
+        self::assertSame(0, Artisan::call('deliveries:consume-rabbitmq', ['--once' => true]));
+        self::assertSame(1, $sent);
+        $this->assertDatabaseCount('delivery_attempts', 1);
+        $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'succeeded']);
+    }
+
     public function test_invalid_transport_configuration_fails_when_the_transport_is_resolved(): void
     {
         config(['delivery.transport' => 'unsupported']);

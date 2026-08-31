@@ -7,7 +7,7 @@ namespace Tests\Unit\Application\Delivery;
 use App\Application\Clock\Clock;
 use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryOutboxIntentFinder;
-use App\Application\Delivery\DeliveryOutboxWriter;
+use App\Application\Delivery\DeliveryOutboxRecovery;
 use App\Application\Delivery\EnqueuePendingDeliveries;
 use App\Domain\Delivery\DeliveryId;
 use InvalidArgumentException;
@@ -45,7 +45,7 @@ final class EnqueuePendingDeliveriesTest extends TestCase
                     return [];
                 }
             },
-            new class($ensured) implements DeliveryOutboxWriter
+            new class($ensured) implements DeliveryOutboxRecovery
             {
                 /** @param list<string> $ensured */
                 public function __construct(array &$ensured)
@@ -56,9 +56,11 @@ final class EnqueuePendingDeliveriesTest extends TestCase
                 /** @var list<string> */
                 private array $ensured;
 
-                public function schedule(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): void
+                public function ensureRecoverable(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): bool
                 {
                     $this->ensured[] = $intent->deliveryId->toString();
+
+                    return true;
                 }
             },
             new class implements Clock
@@ -89,9 +91,12 @@ final class EnqueuePendingDeliveriesTest extends TestCase
                     return [];
                 }
             },
-            new class implements DeliveryOutboxWriter
+            new class implements DeliveryOutboxRecovery
             {
-                public function schedule(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): void {}
+                public function ensureRecoverable(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): bool
+                {
+                    return false;
+                }
             },
             new class implements Clock
             {

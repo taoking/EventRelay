@@ -15,7 +15,7 @@ final readonly class EnqueuePendingDeliveries
 
     public function __construct(
         private DeliveryOutboxIntentFinder $intents,
-        private DeliveryOutboxWriter $outbox,
+        private DeliveryOutboxRecovery $outbox,
         private Clock $clock,
     ) {}
 
@@ -30,8 +30,9 @@ final readonly class EnqueuePendingDeliveries
 
         $ensured = 0;
         foreach ($this->intents->findPendingInitial($limit) as $intent) {
-            $this->outbox->schedule($intent, $this->clock->now());
-            $ensured++;
+            if ($this->outbox->ensureRecoverable($intent, $this->clock->now())) {
+                $ensured++;
+            }
         }
 
         return new EnsureDeliveryOutboxIntentsResult($ensured);

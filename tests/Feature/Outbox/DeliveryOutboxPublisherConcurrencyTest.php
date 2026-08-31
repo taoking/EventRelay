@@ -6,6 +6,7 @@ namespace Tests\Feature\Outbox;
 
 use App\Application\Delivery\DeliveryOutboxPublisherRepository;
 use App\Application\Delivery\DeliveryQueue;
+use App\Application\Delivery\EnqueuePendingDeliveries;
 use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Domain\Delivery\DeliveryId;
 use DateInterval;
@@ -100,6 +101,74 @@ final class DeliveryOutboxPublisherConcurrencyTest extends TestCase
         self::assertSame(2, DB::table('delivery_outbox_messages')->whereNotNull('claimed_until')->count());
     }
 
+    public function test_two_independent_recoverers_rearm_one_published_initial_intent_without_creating_a_second_row(): void
+    {
+        if (DB::connection()->getDriverName() !== 'mysql' || ! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('This regression test requires MySQL/InnoDB and pcntl.');
+        }
+
+        $deliveryId = $this->createEventWithMatchingEndpoints(1)[0];
+        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
+        {
+            public function enqueue(DeliveryId $deliveryId): void {}
+
+            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void {}
+        });
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(1)->published);
+
+        $firstPair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $secondPair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        self::assertNotFalse($firstPair);
+        self::assertNotFalse($secondPair);
+        [$firstParent, $firstChild] = $firstPair;
+        [$secondParent, $secondChild] = $secondPair;
+
+        $firstPid = pcntl_fork();
+        if ($firstPid === -1) {
+            self::fail('Unable to fork the first Outbox recoverer.');
+        }
+        if ($firstPid === 0) {
+            fclose($firstParent);
+            $this->recoverInChild($firstChild);
+        }
+
+        $secondPid = pcntl_fork();
+        if ($secondPid === -1) {
+            self::fail('Unable to fork the second Outbox recoverer.');
+        }
+        if ($secondPid === 0) {
+            fclose($secondParent);
+            $this->recoverInChild($secondChild);
+        }
+
+        fclose($firstChild);
+        fclose($secondChild);
+        stream_set_timeout($firstParent, 10);
+        stream_set_timeout($secondParent, 10);
+
+        try {
+            fwrite($firstParent, "start\n");
+            fwrite($secondParent, "start\n");
+            self::assertSame("ensured:1\n", fgets($firstParent));
+            self::assertSame("ensured:1\n", fgets($secondParent));
+            pcntl_waitpid($firstPid, $firstStatus);
+            pcntl_waitpid($secondPid, $secondStatus);
+            self::assertSame(0, pcntl_wexitstatus($firstStatus));
+            self::assertSame(0, pcntl_wexitstatus($secondStatus));
+
+            $this->reconnectAfterFork();
+            self::assertSame(1, DB::table('delivery_outbox_messages')->where('dedupe_key', "delivery:{$deliveryId}:attempt:1")->count());
+            $this->assertDatabaseHas('delivery_outbox_messages', [
+                'dedupe_key' => "delivery:{$deliveryId}:attempt:1",
+                'status' => 'pending',
+                'last_error_code' => 'broker_job_lost',
+            ]);
+        } finally {
+            fclose($firstParent);
+            fclose($secondParent);
+        }
+    }
+
     /** @return never-return */
     private function publishInChild(mixed $socket, string $callsFile): void
     {
@@ -125,6 +194,26 @@ final class DeliveryOutboxPublisherConcurrencyTest extends TestCase
 
             $result = app(PublishDeliveryOutbox::class)->handle(1);
             fwrite($socket, "published:{$result->published}\n");
+            fclose($socket);
+            exit(0);
+        } catch (\Throwable $exception) {
+            fwrite($socket, 'error:'.get_class($exception)."\n");
+            fclose($socket);
+            exit(1);
+        }
+    }
+
+    /** @return never-return */
+    private function recoverInChild(mixed $socket): void
+    {
+        try {
+            $this->reconnectAfterFork();
+            if (fgets($socket) !== "start\n") {
+                throw new \LogicException('Outbox recoverer did not receive the test barrier release.');
+            }
+
+            $result = app(EnqueuePendingDeliveries::class)->handle(1);
+            fwrite($socket, "ensured:{$result->ensured}\n");
             fclose($socket);
             exit(0);
         } catch (\Throwable $exception) {

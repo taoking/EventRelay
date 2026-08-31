@@ -14,6 +14,7 @@ use App\Application\Delivery\DeliveryQueue;
 use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\PublishDeliveryOutbox;
+use App\Application\Delivery\PublishDeliveryOutboxResult;
 use App\Application\Delivery\RecoverStaleDelivery;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
@@ -204,6 +205,71 @@ final class DeliveryOutboxTest extends TestCase
             'status' => 'published',
             'publication_attempts' => 2,
         ]);
+    }
+
+    public function test_an_expired_batch_lease_can_duplicate_publication_but_cannot_lose_messages(): void
+    {
+        $clock = new FrozenClock(new DateTimeImmutable('2026-09-02T12:00:00+00:00'));
+        $this->app->instance(Clock::class, $clock);
+        $firstDeliveryId = $this->createEventWithOneMatchingEndpoint();
+        $secondDeliveryId = $this->createEventWithOneMatchingEndpoint();
+        $published = [];
+        $nestedResult = null;
+        $advanced = false;
+        $this->app->instance(DeliveryQueue::class, new class($clock, $published, $nestedResult, $advanced) implements DeliveryQueue
+        {
+            /**
+             * @param  list<string>  $published
+             */
+            public function __construct(
+                private readonly FrozenClock $clock,
+                array &$published,
+                ?PublishDeliveryOutboxResult &$nestedResult,
+                bool &$advanced,
+            ) {
+                $this->published = &$published;
+                $this->nestedResult = &$nestedResult;
+                $this->advanced = &$advanced;
+            }
+
+            /** @var list<string> */
+            private array $published;
+
+            private ?PublishDeliveryOutboxResult $nestedResult;
+
+            private bool $advanced;
+
+            public function enqueue(DeliveryId $deliveryId): void
+            {
+                $this->published[] = $deliveryId->toString();
+
+                if ($this->advanced) {
+                    return;
+                }
+
+                $this->advanced = true;
+                $this->clock->set(new DateTimeImmutable('2026-09-02T12:01:01+00:00'));
+                $this->nestedResult = app(PublishDeliveryOutbox::class)->handle(2);
+            }
+
+            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
+            {
+                throw new RuntimeException('Initial delivery must not use delayed scheduling.');
+            }
+        });
+
+        $outerResult = app(PublishDeliveryOutbox::class)->handle(2);
+
+        self::assertNotNull($nestedResult);
+        self::assertSame(2, $nestedResult->published);
+        self::assertSame(0, $outerResult->published);
+        self::assertSame(2, $outerResult->lostLease);
+        $expectedPublished = [$firstDeliveryId, $firstDeliveryId, $secondDeliveryId, $secondDeliveryId];
+        sort($expectedPublished);
+        sort($published);
+        self::assertSame($expectedPublished, $published);
+        self::assertSame(2, DB::table('delivery_outbox_messages')->where('status', 'published')->count());
+        self::assertSame(2, DB::table('delivery_outbox_messages')->where('publication_attempts', 2)->count());
     }
 
     public function test_retry_finalize_and_next_execution_intent_roll_back_together_when_outbox_persistence_fails(): void

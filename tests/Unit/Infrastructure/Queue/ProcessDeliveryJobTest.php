@@ -5,25 +5,21 @@ declare(strict_types=1);
 namespace Tests\Unit\Infrastructure\Queue;
 
 use App\Infrastructure\Queue\ProcessDeliveryJob;
-use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Tests\TestCase;
 
 final class ProcessDeliveryJobTest extends TestCase
 {
-    public function test_it_uses_the_dedicated_redis_deliveries_queue_and_a_delivery_uuid_unique_key(): void
+    public function test_it_uses_the_dedicated_redis_deliveries_queue_without_queue_level_uniqueness(): void
     {
         $deliveryId = 'd2b4d301-f44a-4dab-a545-6f9046cbeb6f';
         $job = new ProcessDeliveryJob($deliveryId);
 
         self::assertInstanceOf(ShouldQueue::class, $job);
-        self::assertInstanceOf(ShouldBeUniqueUntilProcessing::class, $job);
         self::assertSame('redis', $job->connection);
         self::assertSame('deliveries', $job->queue);
-        self::assertSame($deliveryId, $job->uniqueId());
         self::assertSame(1, $job->tries);
         self::assertSame(10, $job->timeout);
-        self::assertSame(300, $job->uniqueFor);
     }
 
     public function test_its_serialized_payload_contains_only_the_delivery_uuid_and_queue_metadata(): void

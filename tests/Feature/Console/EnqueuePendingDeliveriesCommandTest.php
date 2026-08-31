@@ -7,7 +7,7 @@ namespace Tests\Feature\Console;
 use App\Application\Clock\Clock;
 use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryOutboxIntentFinder;
-use App\Application\Delivery\DeliveryOutboxWriter;
+use App\Application\Delivery\DeliveryOutboxRecovery;
 use App\Application\Delivery\EnqueuePendingDeliveries;
 use App\Domain\Delivery\DeliveryId;
 use Illuminate\Support\Facades\Artisan;
@@ -58,7 +58,7 @@ final class EnqueuePendingDeliveriesCommandTest extends TestCase
                         return [];
                     }
                 },
-                new class($ensured) implements DeliveryOutboxWriter
+                new class($ensured) implements DeliveryOutboxRecovery
                 {
                     /**
                      * @param  list<string>  $ensured
@@ -73,9 +73,11 @@ final class EnqueuePendingDeliveriesCommandTest extends TestCase
                      */
                     private array $ensured;
 
-                    public function schedule(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): void
+                    public function ensureRecoverable(DeliveryExecutionIntent $intent, \DateTimeImmutable $now): bool
                     {
                         $this->ensured[] = $intent->deliveryId->toString();
+
+                        return true;
                     }
                 },
                 new class implements Clock

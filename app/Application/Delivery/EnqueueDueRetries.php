@@ -15,7 +15,7 @@ final readonly class EnqueueDueRetries
 
     public function __construct(
         private DeliveryOutboxIntentFinder $intents,
-        private DeliveryOutboxWriter $outbox,
+        private DeliveryOutboxRecovery $outbox,
         private Clock $clock,
     ) {}
 
@@ -28,8 +28,9 @@ final readonly class EnqueueDueRetries
         $now = $this->clock->now();
         $ensured = 0;
         foreach ($this->intents->findDueRetries($now, $limit) as $intent) {
-            $this->outbox->schedule($intent, $now);
-            $ensured++;
+            if ($this->outbox->ensureRecoverable($intent, $now)) {
+                $ensured++;
+            }
         }
 
         return new EnsureDeliveryOutboxIntentsResult($ensured);

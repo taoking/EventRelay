@@ -10,8 +10,8 @@ use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryExecutionRepository;
 use App\Application\Delivery\DeliveryOutboxPublisherRepository;
 use App\Application\Delivery\DeliveryOutboxWriter;
-use App\Application\Delivery\DeliveryQueue;
-use App\Application\Delivery\DeliveryQueueUnavailable;
+use App\Application\Delivery\DeliveryTransport;
+use App\Application\Delivery\DeliveryTransportUnavailable;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Application\Delivery\PublishDeliveryOutboxResult;
@@ -38,7 +38,7 @@ final class DeliveryOutboxTest extends TestCase
     {
         $deliveryId = $this->createEventWithOneMatchingEndpoint();
         $published = [];
-        $this->app->instance(DeliveryQueue::class, new class($published) implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class($published) implements DeliveryTransport
         {
             /** @param list<string> $published */
             public function __construct(array &$published)
@@ -49,14 +49,9 @@ final class DeliveryOutboxTest extends TestCase
             /** @var list<string> */
             private array $published;
 
-            public function enqueue(DeliveryId $deliveryId): void
+            public function publish(DeliveryId $deliveryId): void
             {
                 $this->published[] = $deliveryId->toString();
-            }
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                throw new RuntimeException('Initial delivery must not use delayed scheduling.');
             }
         });
 
@@ -103,16 +98,11 @@ final class DeliveryOutboxTest extends TestCase
     public function test_known_redis_failure_releases_outbox_message_without_losing_the_durable_intent(): void
     {
         $deliveryId = $this->createEventWithOneMatchingEndpoint();
-        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class implements DeliveryTransport
         {
-            public function enqueue(DeliveryId $deliveryId): void
+            public function publish(DeliveryId $deliveryId): void
             {
-                throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis unavailable.'));
-            }
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis unavailable.'));
+                throw new DeliveryTransportUnavailable($deliveryId, 'redis', new RuntimeException('Redis unavailable.'));
             }
         });
 
@@ -132,14 +122,9 @@ final class DeliveryOutboxTest extends TestCase
     public function test_unknown_queue_error_propagates_and_does_not_mark_the_outbox_message_published(): void
     {
         $deliveryId = $this->createEventWithOneMatchingEndpoint();
-        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class implements DeliveryTransport
         {
-            public function enqueue(DeliveryId $deliveryId): void
-            {
-                throw new RuntimeException('Unexpected queue programming error.');
-            }
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
+            public function publish(DeliveryId $deliveryId): void
             {
                 throw new RuntimeException('Unexpected queue programming error.');
             }
@@ -170,7 +155,7 @@ final class DeliveryOutboxTest extends TestCase
         self::assertCount(1, $firstClaim);
 
         $published = [];
-        $this->app->instance(DeliveryQueue::class, new class($published) implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class($published) implements DeliveryTransport
         {
             /** @param list<string> $published */
             public function __construct(array &$published)
@@ -181,19 +166,14 @@ final class DeliveryOutboxTest extends TestCase
             /** @var list<string> */
             private array $published;
 
-            public function enqueue(DeliveryId $deliveryId): void
+            public function publish(DeliveryId $deliveryId): void
             {
                 $this->published[] = $deliveryId->toString();
-            }
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                throw new RuntimeException('Initial delivery must not use delayed scheduling.');
             }
         });
 
         // 模拟 Redis 已接受 Job 后 Publisher 进程在 markPublished 前崩溃。
-        app(DeliveryQueue::class)->enqueue($firstClaim[0]->intent->deliveryId);
+        app(DeliveryTransport::class)->publish($firstClaim[0]->intent->deliveryId);
         $clock->set(new DateTimeImmutable('2026-09-02T12:01:00+00:00'));
 
         $result = app(PublishDeliveryOutbox::class)->handle(100);
@@ -216,7 +196,7 @@ final class DeliveryOutboxTest extends TestCase
         $published = [];
         $nestedResult = null;
         $advanced = false;
-        $this->app->instance(DeliveryQueue::class, new class($clock, $published, $nestedResult, $advanced) implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class($clock, $published, $nestedResult, $advanced) implements DeliveryTransport
         {
             /**
              * @param  list<string>  $published
@@ -239,7 +219,7 @@ final class DeliveryOutboxTest extends TestCase
 
             private bool $advanced;
 
-            public function enqueue(DeliveryId $deliveryId): void
+            public function publish(DeliveryId $deliveryId): void
             {
                 $this->published[] = $deliveryId->toString();
 
@@ -250,11 +230,6 @@ final class DeliveryOutboxTest extends TestCase
                 $this->advanced = true;
                 $this->clock->set(new DateTimeImmutable('2026-09-02T12:01:01+00:00'));
                 $this->nestedResult = app(PublishDeliveryOutbox::class)->handle(2);
-            }
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
-            {
-                throw new RuntimeException('Initial delivery must not use delayed scheduling.');
             }
         });
 

@@ -25,6 +25,12 @@ services:
       REDIS_CLIENT: predis
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      DELIVERY_TRANSPORT: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: eventrelay
+      RABBITMQ_PASSWORD: eventrelay
+      RABBITMQ_VHOST: /
     ports:
       - '8000:8000'
     volumes:
@@ -33,6 +39,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   mysql:
@@ -58,6 +66,20 @@ services:
       - '6379:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: eventrelay
+      RABBITMQ_DEFAULT_PASS: eventrelay
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: 10s
       timeout: 5s
       retries: 10

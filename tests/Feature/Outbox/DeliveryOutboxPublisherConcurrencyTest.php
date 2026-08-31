@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Outbox;
 
 use App\Application\Delivery\DeliveryOutboxPublisherRepository;
-use App\Application\Delivery\DeliveryQueue;
+use App\Application\Delivery\DeliveryTransport;
 use App\Application\Delivery\EnqueuePendingDeliveries;
 use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Domain\Delivery\DeliveryId;
@@ -108,11 +108,9 @@ final class DeliveryOutboxPublisherConcurrencyTest extends TestCase
         }
 
         $deliveryId = $this->createEventWithMatchingEndpoints(1)[0];
-        $this->app->instance(DeliveryQueue::class, new class implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class implements DeliveryTransport
         {
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void {}
+            public function publish(DeliveryId $deliveryId): void {}
         });
         self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(1)->published);
 
@@ -174,16 +172,11 @@ final class DeliveryOutboxPublisherConcurrencyTest extends TestCase
     {
         try {
             $this->reconnectAfterFork();
-            app()->instance(DeliveryQueue::class, new class($callsFile) implements DeliveryQueue
+            app()->instance(DeliveryTransport::class, new class($callsFile) implements DeliveryTransport
             {
                 public function __construct(private readonly string $callsFile) {}
 
-                public function enqueue(DeliveryId $deliveryId): void
-                {
-                    file_put_contents($this->callsFile, $deliveryId->toString()."\n", FILE_APPEND | LOCK_EX);
-                }
-
-                public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void
+                public function publish(DeliveryId $deliveryId): void
                 {
                     file_put_contents($this->callsFile, $deliveryId->toString()."\n", FILE_APPEND | LOCK_EX);
                 }

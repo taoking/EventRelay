@@ -212,3 +212,12 @@
 - [x] 添加 API、安全、keyset、MySQL 并发、查询计划与 Replay 历史稳定性回归。
 - [x] 在准确功能提交 `e0c53a57573a2785153890382539a9ffcd79e7e5` 上执行本机/Docker 质量门和 R-01/R-02 Runtime，并写入 repository-native Evidence。
 - [ ] 单次 push、创建 Draft PR 并等待 CI；Independent Review 前保持 `INCOMPLETE`。
+
+## Issue #28：RabbitMQ Delivery Transport
+
+- [x] 确认 `main@f5a60a4df2842f6e63178178058e58b4791d718a`、post-merge CI `33382822797` 为 PASS，且 Issue #26 已关闭、Issue #28 保持开放；创建 `feature/rabbitmq-delivery-transport`。
+- [x] 阅读唯一执行合同、必读规范、关闭的 Issue #20/相关开发记录，以及当前 Outbox、Queue、Retry/Stale、Docker/CI 与回归测试；确定 MySQL Outbox `available_at` 为唯一业务调度事实源。
+- [ ] 将 Outbox publisher 改为只 claim due intent；建立仅发布 Delivery UUID 的 broker-neutral Application transport，并保持 Redis 默认路径兼容。
+- [ ] 增加 RabbitMQ 4.3 topology、confirm publisher、严格 manual-ack consumer、`outbox:work` 与 config-select provider。
+- [ ] 补齐 Redis/RabbitMQ、MySQL/Rabbit 并发、故障/confirm/redelivery、切换与安全回归。
+- [ ] 在准确功能提交上执行完整质量门、Docker R-01..R-05，提交 repository-native Evidence 后单次 push、创建 Draft PR 并等待 CI；Independent Review 前保持 `INCOMPLETE`。

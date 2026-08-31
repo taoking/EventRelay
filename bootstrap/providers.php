@@ -1,7 +1,7 @@
 <?php
 
-use App\Infrastructure\Providers\DeliveryQueueServiceProvider;
 use App\Infrastructure\Providers\DeliveryServiceProvider;
+use App\Infrastructure\Providers\DeliveryTransportServiceProvider;
 use App\Infrastructure\Providers\EndpointServiceProvider;
 use App\Infrastructure\Providers\EndpointSigningSecretServiceProvider;
 use App\Infrastructure\Providers\EventServiceProvider;
@@ -12,7 +12,7 @@ use App\Providers\AppServiceProvider;
 
 return [
     AppServiceProvider::class,
-    DeliveryQueueServiceProvider::class,
+    DeliveryTransportServiceProvider::class,
     DeliveryServiceProvider::class,
     EventServiceProvider::class,
     EndpointServiceProvider::class,

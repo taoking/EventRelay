@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Queue;
 
-use App\Application\Delivery\DeliveryQueue;
-use App\Application\Delivery\DeliveryQueueUnavailable;
 use App\Application\Delivery\DeliverySnapshotCreator;
+use App\Application\Delivery\DeliveryTransport;
+use App\Application\Delivery\DeliveryTransportUnavailable;
 use App\Application\Event\CreateEvent;
 use App\Application\Subscription\SubscriptionMatcher;
 use App\Domain\Delivery\Delivery;
@@ -41,7 +41,7 @@ final class DeliveryQueueSchedulingTest extends TestCase
         $this->replaceSubscriptions($second, ['order.paid']);
 
         $queueWasCalled = false;
-        $this->app->instance(DeliveryQueue::class, new class($queueWasCalled) implements DeliveryQueue
+        $this->app->instance(DeliveryTransport::class, new class($queueWasCalled) implements DeliveryTransport
         {
             public function __construct(bool &$queueWasCalled)
             {
@@ -50,13 +50,7 @@ final class DeliveryQueueSchedulingTest extends TestCase
 
             private bool $queueWasCalled;
 
-            public function enqueue(DeliveryId $deliveryId): void
-            {
-                $this->queueWasCalled = true;
-                throw new RuntimeException('CreateEvent must not publish Redis directly.');
-            }
-
-            public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
+            public function publish(DeliveryId $deliveryId): void
             {
                 $this->queueWasCalled = true;
                 throw new RuntimeException('CreateEvent must not publish Redis directly.');
@@ -142,17 +136,12 @@ final class DeliveryQueueSchedulingTest extends TestCase
         $this->replaceSubscriptions($endpointId, ['order.paid']);
 
         $this->app->instance(
-            DeliveryQueue::class,
-            new class implements DeliveryQueue
+            DeliveryTransport::class,
+            new class implements DeliveryTransport
             {
-                public function enqueue(DeliveryId $deliveryId): void
+                public function publish(DeliveryId $deliveryId): void
                 {
-                    throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis is unavailable.'));
-                }
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
-                {
-                    throw new DeliveryQueueUnavailable($deliveryId, new RuntimeException('Redis is unavailable.'));
+                    throw new DeliveryTransportUnavailable($deliveryId, 'redis', new RuntimeException('Redis is unavailable.'));
                 }
             },
         );
@@ -172,15 +161,10 @@ final class DeliveryQueueSchedulingTest extends TestCase
         $this->replaceSubscriptions($endpointId, ['order.paid']);
 
         $this->app->instance(
-            DeliveryQueue::class,
-            new class implements DeliveryQueue
+            DeliveryTransport::class,
+            new class implements DeliveryTransport
             {
-                public function enqueue(DeliveryId $deliveryId): void
-                {
-                    throw new RuntimeException('Unexpected queue programming failure.');
-                }
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
+                public function publish(DeliveryId $deliveryId): void
                 {
                     throw new RuntimeException('Unexpected queue programming failure.');
                 }

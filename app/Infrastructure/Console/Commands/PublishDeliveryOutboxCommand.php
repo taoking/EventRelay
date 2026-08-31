@@ -12,7 +12,7 @@ final class PublishDeliveryOutboxCommand extends Command
 {
     protected $signature = 'outbox:publish {--limit=100 : 一次最多发布的 Outbox 消息数量（1-1000）}';
 
-    protected $description = '将已提交的 Delivery Outbox 执行意图发布到 Redis deliveries 队列。';
+    protected $description = '将已提交且已到期的 Delivery Outbox 执行意图发布到当前传输层。';
 
     public function handle(PublishDeliveryOutbox $publisher): int
     {
@@ -32,7 +32,7 @@ final class PublishDeliveryOutboxCommand extends Command
         }
 
         $this->components->info(sprintf(
-            'Outbox 发布完成：成功 %d，Redis 发布失败 %d，lease 已丢失 %d。',
+            'Outbox 发布完成：成功 %d，传输层发布失败 %d，lease 已丢失 %d。',
             $result->published,
             $result->failed,
             $result->lostLease,

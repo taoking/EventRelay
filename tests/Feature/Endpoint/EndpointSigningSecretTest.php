@@ -6,7 +6,7 @@ namespace Tests\Feature\Endpoint;
 
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
-use App\Application\Delivery\DeliveryQueue;
+use App\Application\Delivery\DeliveryTransport;
 use App\Application\Delivery\ProcessPendingDelivery;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
@@ -118,11 +118,9 @@ final class EndpointSigningSecretTest extends TestCase
         ])->assertCreated()->json('data.id');
         $deliveryId = app(CreateDelivery::class)->handle($eventId, $endpointId)->id;
 
-        $queue = new class implements DeliveryQueue
+        $queue = new class implements DeliveryTransport
         {
-            public function enqueue(DeliveryId $deliveryId): void {}
-
-            public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void {}
+            public function publish(DeliveryId $deliveryId): void {}
         };
         $transport = new class implements WebhookTransport
         {
@@ -137,7 +135,7 @@ final class EndpointSigningSecretTest extends TestCase
             }
         };
         $this->bindTransport($transport);
-        $this->app->instance(DeliveryQueue::class, $queue);
+        $this->app->instance(DeliveryTransport::class, $queue);
 
         app(ProcessPendingDelivery::class)->handle(DeliveryId::fromString($deliveryId));
         $clock->set(new DateTimeImmutable('2026-09-01T12:00:10+00:00'));

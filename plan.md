@@ -199,7 +199,7 @@
 
 - [x] 确认 `main@78ace320b0dc49ebb600381b5802e5c5eaca5e41`、post-merge CI run `33359084169` 为 PASS，且 Issue #22 已关闭、Issue #24 保持开放；创建 `feature/event-ingress-idempotency`。
 - [x] 阅读唯一执行合同、必读规范、Event/Delivery/Outbox/Replay 代码与现有并发测试，确定 Event graph、ingress binding 与 Outbox 的单一 MySQL 事务边界。
-- [ ] 实现可选 `Idempotency-Key`、摘要/指纹、binding 持久化与重复请求 winner 恢复。
-- [ ] 添加 API、原子性、MySQL 双进程并发、配置稳定性与泄漏回归。
-- [ ] 创建功能提交后，在该精确实现 HEAD 上完成本机/Docker 质量门和 R-01/R-02 Runtime。
-- [ ] 创建仅含证据与计划的提交，单次推送、建立 Draft PR、等待 CI；Independent Review 前保持 `INCOMPLETE`。
+- [x] 实现可选 `Idempotency-Key`、摘要/指纹、binding 持久化与重复请求 winner 恢复。
+- [x] 添加 API、原子性、MySQL 双进程并发、配置稳定性与泄漏回归。
+- [x] 在 validated implementation head `1f1bab579af9713e3c470de772b307923fee611a` 完成本机/Docker 质量门和 R-01/R-02 Runtime。
+- [x] 创建仅含证据与计划的提交；待单次推送、建立 Draft PR、等待 CI。Independent Review 前保持 `INCOMPLETE`。

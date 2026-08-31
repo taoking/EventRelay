@@ -174,5 +174,6 @@
 - [x] 将人工 pending/due recovery 分离为业务状态校验后的 Outbox recovery contract；仅对尚未开始的当前 intent 重开已 published message。
 - [x] 移除 Queue 层 `ShouldBeUniqueUntilProcessing` 静默抑制，使 Outbox publisher 的成功标记对应实际 Redis publication；保留 Delivery 原子 claim 作为业务正确性防线。
 - [x] 新增 broker-loss initial/retry、orphan unique-lock、re-arm 并发与 lease expiry at-least-once 回归。
-- [ ] 补齐完整整改 Prompt、执行质量门与 Docker Runtime D/E/F，提交、推送并同步 Draft PR/CI 证据。
+- [x] 补齐完整整改 Prompt，执行本机/Docker 质量门与 Docker Runtime D/E/F，提交整改功能与运行证据。
+- [ ] 推送、等待 CI，并同步 Draft PR 的最终 HEAD、正确 CI 链接与证据。
 - [ ] Independent Review #2：NOT RUN；在其完成前保持 `INCOMPLETE`，不得自行 Merge。

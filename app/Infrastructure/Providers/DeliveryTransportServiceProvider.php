@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Infrastructure\Providers;
 
 use App\Application\Delivery\DeliveryTransport;
+use App\Infrastructure\Console\OutboxWorkerSleeper;
+use App\Infrastructure\Console\SystemOutboxWorkerSleeper;
 use App\Infrastructure\Queue\LaravelRedisDeliveryTransport;
 use App\Infrastructure\RabbitMq\PhpAmqpLibRabbitMqDeliveryConsumer;
 use App\Infrastructure\RabbitMq\PhpAmqpLibRabbitMqDeliveryPublisher;
@@ -19,6 +21,7 @@ final class DeliveryTransportServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(OutboxWorkerSleeper::class, SystemOutboxWorkerSleeper::class);
         $this->app->singleton(RabbitMqConfiguration::class, static fn (): RabbitMqConfiguration => RabbitMqConfiguration::fromConfig(config('delivery.rabbitmq')));
         $this->app->bind(RabbitMqDeliveryPublisher::class, PhpAmqpLibRabbitMqDeliveryPublisher::class);
         $this->app->bind(RabbitMqDeliveryConsumer::class, PhpAmqpLibRabbitMqDeliveryConsumer::class);

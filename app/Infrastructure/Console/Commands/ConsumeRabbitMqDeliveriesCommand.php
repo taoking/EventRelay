@@ -33,7 +33,9 @@ final class ConsumeRabbitMqDeliveriesCommand extends Command
 
         $stop = false;
         if (extension_loaded('pcntl')) {
-            pcntl_async_signals(true);
+            // php-amqplib 会在每次有界 select() 返回后派发待处理信号；关闭异步派发可避免
+            // 信号中断 stream_select() 并在优雅退出时被误报为 AMQP I/O 等待失败。
+            pcntl_async_signals(false);
             pcntl_signal(SIGTERM, static function () use (&$stop): void {
                 $stop = true;
             });
@@ -42,7 +44,9 @@ final class ConsumeRabbitMqDeliveriesCommand extends Command
             });
         }
 
-        $consumer->consume($prefetch, static fn (): bool => $stop);
+        $consumer->consume($prefetch, static function () use (&$stop): bool {
+            return $stop;
+        });
 
         return self::SUCCESS;
     }

@@ -8,6 +8,7 @@ use App\Application\Delivery\ProcessPendingDelivery;
 use Illuminate\Support\Facades\Log;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
 
 final readonly class PhpAmqpLibRabbitMqDeliveryConsumer implements RabbitMqDeliveryConsumer
@@ -53,8 +54,19 @@ final readonly class PhpAmqpLibRabbitMqDeliveryConsumer implements RabbitMqDeliv
                 },
             );
 
-            while ($channel->is_consuming() && ! $shouldStop()) {
-                $channel->wait(null, false, 1);
+            while ($channel->is_consuming()) {
+                if ($shouldStop()) {
+                    break;
+                }
+
+                $previousSignalMask = $this->blockTerminationSignalsDuringWait();
+                try {
+                    $channel->wait(null, false, 1);
+                } catch (AMQPTimeoutException) {
+                    continue;
+                } finally {
+                    $this->restoreSignalMaskAfterWait($previousSignalMask);
+                }
             }
         } finally {
             $channel->close();
@@ -104,5 +116,34 @@ final readonly class PhpAmqpLibRabbitMqDeliveryConsumer implements RabbitMqDeliv
 
         $this->processor->handle($envelope->deliveryId);
         $message->ack();
+    }
+
+    /** @return list<int>|null */
+    private function blockTerminationSignalsDuringWait(): ?array
+    {
+        if (! function_exists('pcntl_sigprocmask') || ! defined('SIGTERM') || ! defined('SIGINT')) {
+            return null;
+        }
+
+        $previousSignalMask = [];
+        if (! pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT], $previousSignalMask)) {
+            throw new \LogicException('Unable to block RabbitMQ consumer termination signals during the bounded wait.');
+        }
+
+        return $previousSignalMask;
+    }
+
+    /** @param list<int>|null $previousSignalMask */
+    private function restoreSignalMaskAfterWait(?array $previousSignalMask): void
+    {
+        if ($previousSignalMask === null) {
+            return;
+        }
+
+        if (! pcntl_sigprocmask(SIG_SETMASK, $previousSignalMask)) {
+            throw new \LogicException('Unable to restore RabbitMQ consumer termination signal handling.');
+        }
+
+        pcntl_signal_dispatch();
     }
 }

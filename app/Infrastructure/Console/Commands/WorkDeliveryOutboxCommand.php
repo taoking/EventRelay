@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Infrastructure\Console\Commands;
 
 use App\Application\Delivery\PublishDeliveryOutbox;
+use App\Infrastructure\Console\OutboxWorkerSleeper;
+use App\Infrastructure\Console\OutboxWorkerStopSignal;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
@@ -17,7 +19,7 @@ final class WorkDeliveryOutboxCommand extends Command
 
     protected $description = '持续发布已到期的 Delivery Outbox 执行意图。';
 
-    public function handle(PublishDeliveryOutbox $publisher): int
+    public function handle(PublishDeliveryOutbox $publisher, OutboxWorkerSleeper $sleeper): int
     {
         $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
         $sleep = filter_var($this->option('sleep'), FILTER_VALIDATE_INT);
@@ -33,18 +35,22 @@ final class WorkDeliveryOutboxCommand extends Command
             return self::FAILURE;
         }
 
-        $stop = false;
+        $stop = new OutboxWorkerStopSignal;
         if (extension_loaded('pcntl')) {
-            pcntl_async_signals(true);
+            pcntl_async_signals(false);
             pcntl_signal(SIGTERM, static function () use (&$stop): void {
-                $stop = true;
+                $stop->request();
             });
             pcntl_signal(SIGINT, static function () use (&$stop): void {
-                $stop = true;
+                $stop->request();
             });
         }
 
         while (true) {
+            if ($stop->requested()) {
+                return self::SUCCESS;
+            }
+
             try {
                 $result = $publisher->handle($limit);
             } catch (InvalidArgumentException $exception) {
@@ -60,11 +66,15 @@ final class WorkDeliveryOutboxCommand extends Command
                 $result->lostLease,
             ));
 
-            if ($this->option('once') === true || $stop) {
+            if ($this->option('once') === true) {
                 return self::SUCCESS;
             }
 
-            sleep($sleep);
+            if ($stop->requested()) {
+                return self::SUCCESS;
+            }
+
+            $sleeper->sleep($sleep);
         }
     }
 }

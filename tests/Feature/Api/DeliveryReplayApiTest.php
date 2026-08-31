@@ -61,6 +61,86 @@ final class DeliveryReplayApiTest extends TestCase
         self::assertStringNotContainsString('fixture-key-A', json_encode(DB::table('delivery_outbox_messages')->get(), JSON_THROW_ON_ERROR));
     }
 
+    public function test_same_key_returns_the_committed_replay_after_endpoint_is_disabled_but_a_new_key_is_rejected(): void
+    {
+        [, $endpointId, $sourceId] = $this->failedSource();
+        $replayId = (string) $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'disabled-existing'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->patchJson("/api/endpoints/{$endpointId}", ['status' => 'disabled'])->assertOk();
+
+        $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'disabled-existing'])
+            ->assertOk()
+            ->assertJsonPath('data.id', $replayId);
+        $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'disabled-new'])
+            ->assertConflict()
+            ->assertJsonPath('code', 'replay_endpoint_unavailable');
+
+        self::assertSame(1, DB::table('deliveries')->whereNotNull('replay_of_delivery_id')->count());
+        self::assertSame(1, DB::table('delivery_outbox_messages')
+            ->where('dedupe_key', "delivery:{$replayId}:attempt:1")
+            ->count());
+    }
+
+    public function test_same_key_returns_the_committed_replay_after_endpoint_is_soft_deleted_but_a_new_key_is_rejected(): void
+    {
+        [, $endpointId, $sourceId] = $this->failedSource();
+        $replayId = (string) $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'deleted-existing'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->deleteJson("/api/endpoints/{$endpointId}")->assertNoContent();
+
+        $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'deleted-existing'])
+            ->assertOk()
+            ->assertJsonPath('data.id', $replayId);
+        $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'deleted-new'])
+            ->assertConflict()
+            ->assertJsonPath('code', 'replay_endpoint_unavailable');
+
+        self::assertSame(1, DB::table('deliveries')->whereNotNull('replay_of_delivery_id')->count());
+        self::assertSame(1, DB::table('delivery_outbox_messages')
+            ->where('dedupe_key', "delivery:{$replayId}:attempt:1")
+            ->count());
+    }
+
+    public function test_same_key_preserves_the_original_endpoint_snapshot_after_configuration_changes(): void
+    {
+        $endpointId = (string) $this->postJson('/api/endpoints', [
+            'name' => 'Replay idempotency snapshot endpoint', 'url' => 'https://first.example/webhook',
+        ])->assertCreated()->json('data.id');
+        $keyOne = $this->postJson("/api/endpoints/{$endpointId}/signing-secret")->assertCreated()->json('data.key_id');
+        $eventId = (string) $this->postJson('/api/events', [
+            'type' => 'order.paid', 'payload' => (object) [],
+        ])->assertCreated()->json('data.id');
+        $sourceId = app(CreateDelivery::class)->handle($eventId, $endpointId)->id;
+        DB::table('deliveries')->where('public_id', $sourceId)->update(['status' => 'failed']);
+
+        $firstReplayId = (string) $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'config-existing'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->patchJson("/api/endpoints/{$endpointId}", ['url' => 'https://second.example/webhook'])->assertOk();
+        $keyTwo = $this->postJson("/api/endpoints/{$endpointId}/signing-secret")->assertCreated()->json('data.key_id');
+
+        $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'config-existing'])
+            ->assertOk()
+            ->assertJsonPath('data.id', $firstReplayId);
+        $secondReplayId = (string) $this->postJson("/api/deliveries/{$sourceId}/replay", [], ['Idempotency-Key' => 'config-new'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $firstReplay = DB::table('deliveries')->where('public_id', $firstReplayId)->first();
+        $secondReplay = DB::table('deliveries')->where('public_id', $secondReplayId)->first();
+        self::assertNotNull($firstReplay);
+        self::assertNotNull($secondReplay);
+        self::assertSame('https://first.example/webhook', $firstReplay->target_url);
+        self::assertSame('https://second.example/webhook', $secondReplay->target_url);
+        self::assertSame($keyOne, DB::table('endpoint_signing_secrets')->where('id', $firstReplay->signing_secret_id)->value('public_id'));
+        self::assertSame($keyTwo, DB::table('endpoint_signing_secrets')->where('id', $secondReplay->signing_secret_id)->value('public_id'));
+    }
+
     public function test_the_same_key_on_different_sources_creates_distinct_replays(): void
     {
         [, , $firstSource] = $this->failedSource();

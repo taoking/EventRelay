@@ -149,11 +149,6 @@ final class EloquentDeliveryRepository implements DeliveryReplayCreator, Deliver
             if ($source->status !== DeliveryStatus::Failed->value) {
                 throw new DeliveryNotReplayable('Only failed deliveries can be replayed.');
             }
-            $endpoint = EndpointRecord::query()->whereKey($source->endpoint_id)->lockForUpdate()->first();
-            if ($endpoint === null || $endpoint->status !== EndpointStatus::Active->value) {
-                throw new ReplayEndpointUnavailable('The replay endpoint is unavailable.');
-            }
-
             $existing = DeliveryRecord::query()
                 ->where('event_id', $source->event_id)
                 ->where('endpoint_id', $source->endpoint_id)
@@ -162,6 +157,11 @@ final class EloquentDeliveryRepository implements DeliveryReplayCreator, Deliver
                 ->first();
             if ($existing !== null) {
                 return new ReplayDeliveryCreation($this->toDomain($existing), false);
+            }
+
+            $endpoint = EndpointRecord::query()->whereKey($source->endpoint_id)->lockForUpdate()->first();
+            if ($endpoint === null || $endpoint->status !== EndpointStatus::Active->value) {
+                throw new ReplayEndpointUnavailable('The replay endpoint is unavailable.');
             }
 
             $secretId = $this->currentSigningSecretId($endpoint);

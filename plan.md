@@ -203,3 +203,12 @@
 - [x] 添加 API、原子性、MySQL 双进程并发、配置稳定性与泄漏回归。
 - [x] 在 validated implementation head `1f1bab579af9713e3c470de772b307923fee611a` 完成本机/Docker 质量门和 R-01/R-02 Runtime。
 - [x] 创建仅含证据与计划的提交；待单次推送、建立 Draft PR、等待 CI。Independent Review 前保持 `INCOMPLETE`。
+
+## Issue #26：Operational Dead-Letter Queue
+
+- [x] 确认 `main@09b3c27c56663eafb382fb00f1c4de0c8027c18f`、post-merge CI `33373781905` 为 PASS，且 Issue #24 已关闭、Issue #26 保持开放；创建 `feature/dead-letter-operations`。
+- [x] 阅读唯一执行合同、必读规范、Delivery/Attempt/Replay/Outbox/Ingress 现状与相关 MySQL 并发测试，确定 DLQ 仅为 `Delivery.status=failed` 的读侧投影。
+- [x] 建立失败 Delivery 的有界查询、filter/cursor/API 与 latest-attempt 一致性校验；不新增状态机或 DLQ 写模型。
+- [x] 添加 API、安全、keyset、MySQL 并发、查询计划与 Replay 历史稳定性回归。
+- [x] 在准确功能提交 `e0c53a57573a2785153890382539a9ffcd79e7e5` 上执行本机/Docker 质量门和 R-01/R-02 Runtime，并写入 repository-native Evidence。
+- [ ] 单次 push、创建 Draft PR 并等待 CI；Independent Review 前保持 `INCOMPLETE`。

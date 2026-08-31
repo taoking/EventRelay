@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\DeadLetterController;
 use App\Http\Controllers\Api\DeliveryController;
 use App\Http\Controllers\Api\EndpointController;
 use App\Http\Controllers\Api\EndpointSigningSecretController;
@@ -17,6 +18,8 @@ Route::get('/deliveries', [DeliveryController::class, 'index']);
 Route::get('/deliveries/{id}/attempts', [DeliveryController::class, 'attempts']);
 Route::post('/deliveries/{id}/replay', [DeliveryController::class, 'replay']);
 Route::get('/deliveries/{id}', [DeliveryController::class, 'show']);
+
+Route::get('/dead-letters', [DeadLetterController::class, 'index']);
 
 Route::get('/endpoints', [EndpointController::class, 'index']);
 Route::post('/endpoints', [EndpointController::class, 'store']);

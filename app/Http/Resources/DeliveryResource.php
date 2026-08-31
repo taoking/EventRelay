@@ -14,7 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class DeliveryResource extends JsonResource
 {
     /**
-     * @return array<string, string>
+     * @return array<string, string|null>
      */
     public function toArray(Request $request): array
     {
@@ -25,6 +25,7 @@ final class DeliveryResource extends JsonResource
             'id' => $delivery->id,
             'event_id' => $delivery->eventId,
             'endpoint_id' => $delivery->endpointId,
+            'replay_of_delivery_id' => $delivery->replayOfDeliveryId,
             'status' => $delivery->status,
             'created_at' => $delivery->createdAt,
             'updated_at' => $delivery->updatedAt,

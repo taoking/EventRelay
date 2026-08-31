@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $public_id
  * @property int $event_id
  * @property int $endpoint_id
+ * @property string $creation_key
+ * @property int|null $replay_of_delivery_id
  * @property string|null $target_url
  * @property int|null $signing_secret_id
  * @property string $status
@@ -28,6 +30,8 @@ final class DeliveryRecord extends Model
         'public_id',
         'event_id',
         'endpoint_id',
+        'creation_key',
+        'replay_of_delivery_id',
         'target_url',
         'signing_secret_id',
         'status',

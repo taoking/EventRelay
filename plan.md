@@ -178,3 +178,19 @@
 - [x] 推送并确认整改 HEAD 的 GitHub Actions run `33346107528` 为 PASS，PR Body 使用正确链接同步证据。
 - [ ] 推送最终 CI traceability 文档并确认其 GitHub Actions；Independent Review #2 前保持 `INCOMPLETE`。
 - [ ] Independent Review #2：NOT RUN；在其完成前保持 `INCOMPLETE`，不得自行 Merge。
+
+## Issue #22：Failed Delivery Manual Replay
+
+- [x] 确认 `main@c83c8d19b02c81732e4638d63c923883f8f0a68c`、post-merge CI run `33346704661` 为 PASS，且 Issue #20 已关闭、Issue #22 保持开放；创建 `feature/delivery-replay`。
+- [x] 建立 Replay 的新 Delivery 语义、`replay_of` 谱系、主投递/Replay creation key 与 Endpoint 当前 URL/签名 key 原子快照骨架。
+- [x] 建立强制 Idempotency-Key 校验与 source-scoped SHA-256 creation identity，并让 Replay Delivery 与 attempt #1 Outbox 在同一 MySQL 事务内创建。
+- [x] 补齐 MySQL 并发、端点配置快照、Outbox/Redis、HMAC 与历史不可变性的完整回归。
+- [x] 保存 Issue/Prompt 完整原文，执行双环境质量门和 Docker Runtime A/B/C/D。
+- [x] 审核、提交、推送、创建 Draft PR #23，并确认验证 HEAD `a6562f3` 的 GitHub Actions run `33354360566` 为 PASS；Independent Review 前状态保持 `INCOMPLETE`。
+
+## PR #23：Independent Review #1 — Replay Idempotency-Key 稳定返回整改
+
+- [x] 以 `docs/tasks/0022-delivery-replay/REMEDIATION-01.md` 作为唯一整改合同，确认 M-01 为既有结果读取发生在 Endpoint 可用性校验之后的顺序问题。
+- [x] 调整同一 MySQL transaction 内的锁定 current read 顺序，补齐 disabled、soft-delete 与配置变更回归。
+- [x] 执行专项、双环境质量门与 Docker/MySQL R-01，保存 repository-native evidence。
+- [x] 提交、推送、同步 Draft PR #23 的 CI；Independent Review #2 前状态保持 `INCOMPLETE`。

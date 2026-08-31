@@ -193,4 +193,4 @@
 - [x] 以 `docs/tasks/0022-delivery-replay/REMEDIATION-01.md` 作为唯一整改合同，确认 M-01 为既有结果读取发生在 Endpoint 可用性校验之后的顺序问题。
 - [x] 调整同一 MySQL transaction 内的锁定 current read 顺序，补齐 disabled、soft-delete 与配置变更回归。
 - [x] 执行专项、双环境质量门与 Docker/MySQL R-01，保存 repository-native evidence。
-- [ ] 提交、推送、同步 Draft PR #23 的 CI；Independent Review #2 前状态保持 `INCOMPLETE`。
+- [x] 提交、推送、同步 Draft PR #23 的 CI；Independent Review #2 前状态保持 `INCOMPLETE`。

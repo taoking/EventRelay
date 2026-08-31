@@ -175,5 +175,6 @@
 - [x] 移除 Queue 层 `ShouldBeUniqueUntilProcessing` 静默抑制，使 Outbox publisher 的成功标记对应实际 Redis publication；保留 Delivery 原子 claim 作为业务正确性防线。
 - [x] 新增 broker-loss initial/retry、orphan unique-lock、re-arm 并发与 lease expiry at-least-once 回归。
 - [x] 补齐完整整改 Prompt，执行本机/Docker 质量门与 Docker Runtime D/E/F，提交整改功能与运行证据。
-- [ ] 推送、等待 CI，并同步 Draft PR 的最终 HEAD、正确 CI 链接与证据。
+- [x] 推送并确认整改 HEAD 的 GitHub Actions run `33346107528` 为 PASS，PR Body 使用正确链接同步证据。
+- [ ] 推送最终 CI traceability 文档并确认其 GitHub Actions；Independent Review #2 前保持 `INCOMPLETE`。
 - [ ] Independent Review #2：NOT RUN；在其完成前保持 `INCOMPLETE`，不得自行 Merge。

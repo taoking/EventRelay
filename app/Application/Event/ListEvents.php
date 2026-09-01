@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace App\Application\Event;
 
+use App\Application\CoreList\CoreListPage;
+use App\Application\CoreList\CoreListPageRequest;
+
 final readonly class ListEvents
 {
     public function __construct(
-        private EventRepository $events,
+        private EventPageRepository $events,
     ) {}
 
-    /**
-     * @return list<EventData>
-     */
-    public function handle(): array
+    public function handle(CoreListPageRequest $request): CoreListPage
     {
-        return array_map(EventData::fromDomain(...), $this->events->all());
+        return $this->events->page($request);
     }
 }

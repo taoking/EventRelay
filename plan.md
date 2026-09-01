@@ -244,3 +244,11 @@
 - [x] 读取 `REMEDIATION-01.md`，确认 M-01 仅要求 MySQL durable write/commit probe，Redis/RabbitMQ 不进入 readiness，liveness 不变。
 - [x] 在 `99452ff02d7f587973e0cc3d300b681f87c2072f` 实现专用零净状态 probe、真实 MySQL 只读/恢复与并发回归；首个整改提交已同时包含合同与开发记录索引。
 - [x] 在精确整改代码 HEAD 完成 targeted、Docker R-06/R-07/R-08、物理 MySQL down、本机/Docker quality 与 clean-schema migration；详见 `EVIDENCE.md`。待单次 push 与 PR #31 CI，Independent Review #2 前保持 `INCOMPLETE`。
+
+## Issue #32：核心列表 Cursor Pagination
+
+- [x] 确认 `main@b4d89fd835671496b1b884aa1a77a0303af699fe`、post-merge CI `33519988281` 为 PASS，且 Issue #30 已关闭、Issue #32 开放；从该绿色基线创建 `feature/core-list-cursor-pagination`。
+- [x] 完成 Explore：三个核心列表当前均以内部单调 `id ASC` 输出；将以加密且 resource-bound 的 `after/upper` keyset cursor 保持该排序，Endpoint 继续按 SQL SoftDeletes 可见性读取。
+- [x] 建立 Application page/cursor contract 与三类 bounded keyset persistence query，移除三条核心 list path 对 `all()` 的依赖；本机 API/安全/查询数专项为 PASS，MySQL 并发待 Docker 实跑。
+- [ ] 覆盖 HTTP 契约、安全、tie、MySQL C-01～C-05、Runtime R-01～R-05 与 Docker EXPLAIN。
+- [ ] 在精确功能 SHA 完成验证后写入证据并单次 push、创建 Draft PR；Independent Review 前保持 `INCOMPLETE`。

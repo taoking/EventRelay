@@ -10,11 +10,6 @@ interface EndpointRepository
 {
     public function save(Endpoint $endpoint): Endpoint;
 
-    /**
-     * @return list<Endpoint>
-     */
-    public function all(): array;
-
     public function find(string $id): ?Endpoint;
 
     public function delete(Endpoint $endpoint): void;

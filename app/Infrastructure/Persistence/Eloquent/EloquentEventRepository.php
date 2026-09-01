@@ -25,17 +25,6 @@ final class EloquentEventRepository implements EventRepository
         return $this->toDomain($record->refresh());
     }
 
-    public function all(): array
-    {
-        $events = [];
-
-        foreach (EventRecord::query()->orderBy('id')->get() as $record) {
-            $events[] = $this->toDomain($record);
-        }
-
-        return $events;
-    }
-
     public function find(string $id): ?Event
     {
         $record = EventRecord::query()

@@ -10,10 +10,5 @@ interface EventRepository
 {
     public function save(Event $event): Event;
 
-    /**
-     * @return list<Event>
-     */
-    public function all(): array;
-
     public function find(string $id): ?Event;
 }

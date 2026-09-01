@@ -61,6 +61,31 @@ curl --fail http://localhost:8000/up
 访问 `/internal/health/live`、`/internal/health/ready` 和 `/internal/metrics`。启用但未配置 token
 属于启动时配置错误；不要将 token 写入日志、监控标签或仓库文件。
 
+## 核心列表 Cursor Pagination
+
+`GET /api/events`、`GET /api/deliveries` 和 `GET /api/endpoints` 均使用同一受限的 cursor pagination
+契约。省略参数时最多返回 50 条；`limit` 只能是 `1..100` 的十进制整数。响应固定为：
+
+```json
+{
+  "data": [],
+  "meta": {
+    "limit": 50,
+    "next_cursor": null
+  }
+}
+```
+
+`next_cursor` 是仅供下一页使用的加密、认证且 resource-bound 的不透明值；不得解析、构造、记录或将
+Events cursor 用于 Deliveries/Endpoints。无效 `limit` 返回 `422 invalid_pagination_limit`，无效、
+篡改或跨资源 cursor 返回 `422 invalid_pagination_cursor`。核心列表不提供总数、页码、offset 或上一页
+cursor。
+
+三个列表继续按既有创建/接收顺序升序输出。第一页固定当时的创建上界，后续页只遍历该上界以内的记录，
+因此第一页之后创建的 Event、Delivery 或 Endpoint 不会进入原 traversal。Event 和 Delivery 的历史
+遍历在该快照窗口内不会重复或遗漏；Endpoint 仍遵守实时 soft-delete 可见性：后续页不会暴露页间已删除
+的 Endpoint，因此不承诺跨独立 HTTP 请求的 serializable visibility snapshot。
+
 ## Endpoint API
 
 Endpoint 使用稳定的公开 UUID，内部数据库自增键不会出现在 API 响应中。支持的操作为：

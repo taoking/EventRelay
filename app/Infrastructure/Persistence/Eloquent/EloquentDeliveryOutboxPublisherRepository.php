@@ -9,7 +9,6 @@ use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryOutboxPublisherRepository;
 use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -18,19 +17,7 @@ final class EloquentDeliveryOutboxPublisherRepository implements DeliveryOutboxP
     public function claim(int $limit, DateTimeImmutable $now, DateTimeImmutable $leaseUntil): array
     {
         return DB::transaction(function () use ($limit, $now, $leaseUntil): array {
-            $query = DeliveryOutboxMessageRecord::query()
-                ->where(function (Builder $query) use ($now): void {
-                    $query->where('status', 'pending')
-                        ->orWhere(function (Builder $query) use ($now): void {
-                            $query->where('status', 'publishing')
-                                ->whereNotNull('claimed_until')
-                                ->where('claimed_until', '<=', $now);
-                        });
-                })
-                ->where(function (Builder $query) use ($now): void {
-                    $query->whereNull('available_at')
-                        ->orWhere('available_at', '<=', $now);
-                })
+            $query = EloquentDeliveryOutboxDueQuery::apply(DeliveryOutboxMessageRecord::query(), $now)
                 ->orderBy('id')
                 ->limit($limit);
 

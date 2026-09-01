@@ -54,6 +54,13 @@ docker compose exec app php artisan tinker --execute="dump(DB::select('select 1 
 curl --fail http://localhost:8000/up
 ```
 
+## Internal operations endpoints
+
+内部 operations endpoints 默认关闭。只有在部署网络已限制其访问范围时，才可以同时配置
+`OPERATIONS_ENDPOINTS_ENABLED=true` 与非空的 `OPERATIONS_BEARER_TOKEN`，并使用 Bearer token
+访问 `/internal/health/live`、`/internal/health/ready` 和 `/internal/metrics`。启用但未配置 token
+属于启动时配置错误；不要将 token 写入日志、监控标签或仓库文件。
+
 ## Endpoint API
 
 Endpoint 使用稳定的公开 UUID，内部数据库自增键不会出现在 API 响应中。支持的操作为：

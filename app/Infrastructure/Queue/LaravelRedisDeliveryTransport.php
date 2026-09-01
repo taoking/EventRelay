@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Predis\Connection\ConnectionException;
 use Predis\Connection\Resource\Exception\StreamInitException;
 use Predis\Response\ServerException;
+use Predis\TimeoutException;
 use RedisException;
 
 final class LaravelRedisDeliveryTransport implements DeliveryTransport
@@ -21,7 +22,7 @@ final class LaravelRedisDeliveryTransport implements DeliveryTransport
         try {
             $pendingDispatch = new PendingDispatch(new ProcessDeliveryJob($deliveryId->toString()));
             unset($pendingDispatch);
-        } catch (ConnectionException|RedisException|ServerException|StreamInitException $exception) {
+        } catch (ConnectionException|RedisException|ServerException|StreamInitException|TimeoutException $exception) {
             Log::warning('Delivery transport publication failed.', [
                 'delivery_id' => $deliveryId->toString(),
                 'transport' => 'redis',

@@ -15,5 +15,10 @@ interface DeliveryOutboxPublisherRepository
 
     public function markPublished(string $publicId, string $claimToken, DateTimeImmutable $now): bool;
 
-    public function releaseAfterKnownPublicationFailure(string $publicId, string $claimToken, DateTimeImmutable $now): bool;
+    public function releaseAfterKnownPublicationFailure(
+        string $publicId,
+        string $claimToken,
+        string $transport,
+        DateTimeImmutable $now,
+    ): bool;
 }

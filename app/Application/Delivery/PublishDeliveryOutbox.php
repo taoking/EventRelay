@@ -18,7 +18,7 @@ final readonly class PublishDeliveryOutbox
 
     public function __construct(
         private DeliveryOutboxPublisherRepository $outbox,
-        private DeliveryQueue $queue,
+        private DeliveryTransport $transport,
         private Clock $clock,
     ) {}
 
@@ -40,13 +40,14 @@ final readonly class PublishDeliveryOutbox
 
         foreach ($messages as $message) {
             try {
-                if ($message->intent->availableAt === null) {
-                    $this->queue->enqueue($message->intent->deliveryId);
-                } else {
-                    $this->queue->schedule($message->intent->deliveryId, $message->intent->availableAt);
-                }
-            } catch (DeliveryQueueUnavailable) {
-                if ($this->outbox->releaseAfterKnownPublicationFailure($message->publicId, $message->claimToken, $this->clock->now())) {
+                $this->transport->publish($message->intent->deliveryId);
+            } catch (DeliveryTransportUnavailable $exception) {
+                if ($this->outbox->releaseAfterKnownPublicationFailure(
+                    $message->publicId,
+                    $message->claimToken,
+                    $exception->transport,
+                    $this->clock->now(),
+                )) {
                     $failed++;
                 } else {
                     $lostLease++;

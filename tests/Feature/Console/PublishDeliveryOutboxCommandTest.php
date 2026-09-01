@@ -8,7 +8,7 @@ use App\Application\Clock\Clock;
 use App\Application\Delivery\ClaimedDeliveryOutboxMessage;
 use App\Application\Delivery\DeliveryExecutionIntent;
 use App\Application\Delivery\DeliveryOutboxPublisherRepository;
-use App\Application\Delivery\DeliveryQueue;
+use App\Application\Delivery\DeliveryTransport;
 use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Domain\Delivery\DeliveryId;
 use DateTimeImmutable;
@@ -48,16 +48,14 @@ final class PublishDeliveryOutboxCommandTest extends TestCase
                     return true;
                 }
 
-                public function releaseAfterKnownPublicationFailure(string $publicId, string $claimToken, DateTimeImmutable $now): bool
+                public function releaseAfterKnownPublicationFailure(string $publicId, string $claimToken, string $transport, DateTimeImmutable $now): bool
                 {
                     return true;
                 }
             },
-            new class implements DeliveryQueue
+            new class implements DeliveryTransport
             {
-                public function enqueue(DeliveryId $deliveryId): void {}
-
-                public function schedule(DeliveryId $deliveryId, DateTimeImmutable $availableAt): void {}
+                public function publish(DeliveryId $deliveryId): void {}
             },
             new class implements Clock
             {

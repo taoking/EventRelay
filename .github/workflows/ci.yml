@@ -34,6 +34,18 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+      rabbitmq:
+        image: rabbitmq:4.3-management
+        env:
+          RABBITMQ_DEFAULT_USER: eventrelay
+          RABBITMQ_DEFAULT_PASS: eventrelay
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +79,10 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: root
           REDIS_HOST: 127.0.0.1
+          RABBITMQ_HOST: 127.0.0.1
+          RABBITMQ_PORT: 5672
+          RABBITMQ_USER: eventrelay
+          RABBITMQ_PASSWORD: eventrelay
 
       - name: Mechanical quality gate
         run: composer quality
@@ -79,3 +95,7 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: root
           REDIS_HOST: 127.0.0.1
+          RABBITMQ_HOST: 127.0.0.1
+          RABBITMQ_PORT: 5672
+          RABBITMQ_USER: eventrelay
+          RABBITMQ_PASSWORD: eventrelay

@@ -129,18 +129,22 @@ final class DeliveryOutboxBrokerLossRecoveryTest extends TestCase
             'response_status' => 500,
         ]);
 
-        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
-        self::assertSame(1, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
+        // Outbox 是唯一的 due gate：未来 retry intent 不能提前交给 Redis delayed queue。
+        self::assertSame(0, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(0, $this->queueLength());
 
-        // 删除尚未消费的 delayed Job，模拟 Redis broker state loss。
+        $clock->set($nextAttemptAt);
+        self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
+        self::assertSame(1, $this->queueLength());
+
+        // 删除尚未消费的即时 Job，模拟 Redis broker state loss。
         $this->clearDeliveriesQueue();
-        self::assertSame(0, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
+        self::assertSame(0, $this->queueLength());
         $this->assertDatabaseHas('delivery_outbox_messages', [
             'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
             'status' => 'published',
         ]);
 
-        $clock->set($nextAttemptAt);
         self::assertSame(1, app(EnqueueDueRetries::class)->handle(100)->ensured);
         $this->assertDatabaseHas('delivery_outbox_messages', [
             'dedupe_key' => "delivery:{$deliveryId}:attempt:2",
@@ -149,7 +153,7 @@ final class DeliveryOutboxBrokerLossRecoveryTest extends TestCase
         ]);
 
         self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
-        self::assertSame(1, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
+        self::assertSame(1, $this->queueLength());
 
         (new ProcessDeliveryJob($deliveryId))->handle(app(ProcessPendingDelivery::class));
         $this->assertDatabaseHas('deliveries', ['public_id' => $deliveryId, 'status' => 'succeeded']);

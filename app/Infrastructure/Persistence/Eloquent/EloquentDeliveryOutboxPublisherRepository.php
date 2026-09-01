@@ -27,6 +27,10 @@ final class EloquentDeliveryOutboxPublisherRepository implements DeliveryOutboxP
                                 ->where('claimed_until', '<=', $now);
                         });
                 })
+                ->where(function (Builder $query) use ($now): void {
+                    $query->whereNull('available_at')
+                        ->orWhere('available_at', '<=', $now);
+                })
                 ->orderBy('id')
                 ->limit($limit);
 
@@ -79,7 +83,7 @@ final class EloquentDeliveryOutboxPublisherRepository implements DeliveryOutboxP
             ]) === 1;
     }
 
-    public function releaseAfterKnownPublicationFailure(string $publicId, string $claimToken, DateTimeImmutable $now): bool
+    public function releaseAfterKnownPublicationFailure(string $publicId, string $claimToken, string $transport, DateTimeImmutable $now): bool
     {
         return DeliveryOutboxMessageRecord::query()
             ->where('public_id', $publicId)
@@ -89,7 +93,7 @@ final class EloquentDeliveryOutboxPublisherRepository implements DeliveryOutboxP
                 'status' => 'pending',
                 'claim_token' => null,
                 'claimed_until' => null,
-                'last_error_code' => 'redis_unavailable',
+                'last_error_code' => $transport.'_unavailable',
                 'updated_at' => $now,
             ]) === 1;
     }

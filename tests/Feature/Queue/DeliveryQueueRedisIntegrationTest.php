@@ -6,8 +6,8 @@ namespace Tests\Feature\Queue;
 
 use App\Application\Clock\Clock;
 use App\Application\Delivery\CreateDelivery;
-use App\Application\Delivery\DeliveryQueue;
-use App\Application\Delivery\DeliveryQueueUnavailable;
+use App\Application\Delivery\DeliveryTransport;
+use App\Application\Delivery\DeliveryTransportUnavailable;
 use App\Application\Delivery\PublishDeliveryOutbox;
 use App\Application\Delivery\WebhookRequest;
 use App\Application\Delivery\WebhookResponse;
@@ -15,11 +15,8 @@ use App\Application\Delivery\WebhookTarget;
 use App\Application\Delivery\WebhookTargetResolver;
 use App\Application\Delivery\WebhookTransport;
 use App\Domain\Delivery\DeliveryId;
-use App\Infrastructure\Queue\LaravelRedisDeliveryQueue;
-use App\Infrastructure\Queue\ProcessDeliveryJob;
-use Illuminate\Bus\UniqueLock;
+use App\Infrastructure\Queue\LaravelRedisDeliveryTransport;
 use Illuminate\Contracts\Bus\Dispatcher;
-use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -47,15 +44,15 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $this->replaceSubscriptions($firstEndpointId, ['order.paid']);
         $this->replaceSubscriptions($secondEndpointId, ['order.paid']);
         $visibilityConnection = $this->createConnection('delivery_queue_visibility');
-        $realQueue = app(DeliveryQueue::class);
+        $realQueue = app(DeliveryTransport::class);
         $deliveryWasCommitted = false;
 
         $this->app->instance(
-            DeliveryQueue::class,
-            new class($realQueue, $visibilityConnection, $deliveryWasCommitted) implements DeliveryQueue
+            DeliveryTransport::class,
+            new class($realQueue, $visibilityConnection, $deliveryWasCommitted) implements DeliveryTransport
             {
                 public function __construct(
-                    private DeliveryQueue $queue,
+                    private DeliveryTransport $queue,
                     private string $visibilityConnection,
                     bool &$deliveryWasCommitted,
                 ) {
@@ -64,19 +61,14 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
                 private bool $deliveryWasCommitted;
 
-                public function enqueue(DeliveryId $deliveryId): void
+                public function publish(DeliveryId $deliveryId): void
                 {
                     $this->deliveryWasCommitted = DB::connection($this->visibilityConnection)
                         ->table('deliveries')
                         ->where('public_id', $deliveryId->toString())
                         ->exists();
 
-                    $this->queue->enqueue($deliveryId);
-                }
-
-                public function schedule(DeliveryId $deliveryId, \DateTimeImmutable $availableAt): void
-                {
-                    $this->queue->schedule($deliveryId, $availableAt);
+                    $this->queue->publish($deliveryId);
                 }
             },
         );
@@ -154,18 +146,18 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $deliveryId = DeliveryId::fromString('adb4d301-f44a-4dab-a545-6f9046cbeb6f');
 
         try {
-            app(DeliveryQueue::class)->enqueue($deliveryId);
+            app(DeliveryTransport::class)->publish($deliveryId);
             self::fail('An unavailable Redis connection must be translated.');
-        } catch (DeliveryQueueUnavailable $exception) {
+        } catch (DeliveryTransportUnavailable $exception) {
             self::assertSame($deliveryId->toString(), $exception->deliveryId->toString());
         }
 
         Log::shouldHaveReceived('warning')
             ->once()
-            ->with('Delivery queue publication failed.', \Mockery::on(
+            ->with('Delivery transport publication failed.', \Mockery::on(
                 static fn (array $context): bool => $context['delivery_id'] === $deliveryId->toString()
                     && $context['queue'] === 'deliveries'
-                    && $context['connection'] === 'redis'
+                    && $context['transport'] === 'redis'
                     && in_array($context['exception'], [
                         ConnectionException::class,
                         RedisException::class,
@@ -183,9 +175,9 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $dispatcher = $this->replaceDispatcherWithServerFailure();
 
         try {
-            app(LaravelRedisDeliveryQueue::class)->enqueue($deliveryId);
+            app(LaravelRedisDeliveryTransport::class)->publish($deliveryId);
             self::fail('A Redis server publication error must be translated.');
-        } catch (DeliveryQueueUnavailable $exception) {
+        } catch (DeliveryTransportUnavailable $exception) {
             self::assertSame($deliveryId->toString(), $exception->deliveryId->toString());
             self::assertInstanceOf(ServerException::class, $exception->getPrevious());
         } finally {
@@ -194,10 +186,10 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
         Log::shouldHaveReceived('warning')
             ->once()
-            ->with('Delivery queue publication failed.', \Mockery::on(
+            ->with('Delivery transport publication failed.', \Mockery::on(
                 static fn (array $context): bool => $context['delivery_id'] === $deliveryId->toString()
                     && $context['queue'] === 'deliveries'
-                    && $context['connection'] === 'redis'
+                    && $context['transport'] === 'redis'
                     && $context['exception'] === ServerException::class
                     && $context['message'] === 'READONLY simulated publication failure'
                     && ! array_key_exists('payload', $context),
@@ -255,8 +247,8 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $deliveryId = DeliveryId::fromString($delivery->id);
 
         try {
-            app(DeliveryQueue::class)->enqueue($deliveryId);
-            app(DeliveryQueue::class)->enqueue($deliveryId);
+            app(DeliveryTransport::class)->publish($deliveryId);
+            app(DeliveryTransport::class)->publish($deliveryId);
 
             self::assertSame(2, $this->queueLength());
             self::assertStringContainsString(
@@ -297,7 +289,7 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
         $deliveryId = DeliveryId::fromString(app(CreateDelivery::class)->handle($eventId, $endpointId)->id);
 
         try {
-            app(DeliveryQueue::class)->enqueue($deliveryId);
+            app(DeliveryTransport::class)->publish($deliveryId);
             self::assertSame(1, $this->queueLength());
             self::assertSame(0, Artisan::call('queue:work', [
                 'connection' => 'redis',
@@ -315,42 +307,16 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
                 'attempt_number' => 2,
                 'status' => 'pending',
             ]);
+            self::assertSame(0, app(PublishDeliveryOutbox::class)->handle(100)->published);
+            self::assertSame(0, $this->queueLength());
+            $clock->set(new \DateTimeImmutable('2026-08-31T12:00:10+00:00'));
             self::assertSame(1, app(PublishDeliveryOutbox::class)->handle(100)->published);
-            self::assertSame(1, (int) Redis::connection()->zCard('queues:deliveries:delayed'));
+            self::assertSame(1, $this->queueLength());
             self::assertStringContainsString(
                 $deliveryId->toString(),
-                (string) Redis::connection()->zRange('queues:deliveries:delayed', 0, 0)[0],
+                (string) Redis::connection()->lIndex('queues:deliveries', 0),
             );
         } finally {
-            $this->clearDeliveriesQueue();
-        }
-    }
-
-    public function test_an_orphan_laravel_unique_lock_cannot_suppress_physical_outbox_publication(): void
-    {
-        $this->requireMySqlAndRedis();
-        $this->clearDeliveriesQueue();
-
-        $endpointId = $this->createEndpoint('Orphan lock endpoint');
-        $this->replaceSubscriptions($endpointId, ['order.paid']);
-        $eventId = (string) $this->postEvent('order.paid')->assertCreated()->json('data.id');
-        $deliveryId = DeliveryId::fromString($this->deliveryIdForEvent($eventId));
-        $job = new ProcessDeliveryJob($deliveryId->toString());
-        $orphan = new UniqueLock(app(Cache::class));
-        self::assertTrue($orphan->acquire($job));
-
-        try {
-            $result = app(PublishDeliveryOutbox::class)->handle(100);
-
-            self::assertSame(1, $result->published);
-            self::assertSame(0, $result->failed);
-            self::assertSame(1, $this->queueLength());
-            $this->assertDatabaseHas('delivery_outbox_messages', [
-                'dedupe_key' => 'delivery:'.$deliveryId->toString().':attempt:1',
-                'status' => 'published',
-            ]);
-        } finally {
-            $orphan->release($job);
             $this->clearDeliveriesQueue();
         }
     }

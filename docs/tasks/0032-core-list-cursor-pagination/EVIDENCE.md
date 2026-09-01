@@ -39,7 +39,7 @@
 |---|---|---|
 | R-01 Events | PASS | 125 Events；无参第一页 50；`limit=40` 分页为 `40/40/40/5`，125 个公开 UUID 恰好一次，末页 `next_cursor=null`。 |
 | R-02 Deliveries | PASS | 105 个旧 Delivery；第一页后新建一个 Delivery 且把后页既有 Delivery 改为 `succeeded`；旧窗口仍为 105 个唯一 Delivery，新行排除，状态实时反映为 `succeeded`。 |
-| R-03 Endpoints | PASS | 105 个旧 Endpoint；第一页后软删除尚未读取的 Endpoint 并插入一个新 Endpoint；旧 traversal 返回 105 个唯一可见 Endpoint，已删项隐藏、新项排除。 |
+| R-03 Endpoints | PASS | Independent Review #1 后在 Docker + MySQL 8.4 + 实际 HTTP 重跑：初始可见 105、第一页 50、软删除 1 个未读旧项、页后插入 1 项；预期/实际/唯一旧 traversal 均为 104，重复 0、被删项不存在、新项不存在、末页 `next_cursor=null`。详见 `REMEDIATION-01.md`。 |
 | R-04 Security | PASS | 篡改、跨资源、垃圾 cursor 分别返回 422；响应不含 `after`、`upper`、APP_KEY、MAC/cipher 或解密异常信息；请求前后应用日志增长为 0。 |
 | R-05 Large dataset | PASS | 5,231 Events、5,106 Deliveries、5,106 个可见 Endpoint；Events 与 Deliveries 均实际 HTTP 连续读取 50 页、各 5,000 个唯一公开 UUID，深页固定 100 项且仍有下一页。 |
 
@@ -76,12 +76,13 @@
 | AC-10 | PASS | C-03。 |
 | AC-11 | PASS | API cursor/limit 安全回归与 R-04。 |
 | AC-12 | PASS | query-count 回归与 Docker MySQL EXPLAIN/ANALYZE。 |
-| AC-13 | PASS | R-01 至 R-05。 |
+| AC-13 | PASS | R-01 至 R-05；R-03 的 Independent Review #1 证据矛盾已由 R-03R 真实 Docker HTTP 重跑校正。 |
 | AC-14 | PASS | 两套 `composer quality` 覆盖 DLQ、Replay、Ingress、Outbox、Retry/Stale、Redis/Rabbit、Operations、HMAC 与 SSRF。 |
 | AC-15 | NOT RUN | Issue/CODEX 与本 EVIDENCE 已存在；单次 push、Draft PR 与 CI 将在本证据提交后执行。 |
 
 ## 风险 / NOT RUN
 
-- `INCOMPLETE`：Independent Review 仍为 `NOT RUN`。
-- Endpoint 的旧 cursor 只固定插入成员上界；页间软删除的旧 Endpoint 会隐藏，这是刻意的实时可见性语义，不是跨请求 Serializable snapshot。
+- Independent Review #1：`REQUEST CHANGES`，Review ID `5080278324`；唯一 blocking finding 为 L-01（R-03 evidence count contradiction）。
+- Remediation #1：R-03R 为 `PASS`；Independent Review #2 为 `NOT RUN`，因此总体仍为 `INCOMPLETE`。
+- Endpoint cursor 固定的是 persistence creation-key / allocation-key high-watermark：它保证第一页完成后新创建的 row 不扩张到旧 traversal；它不声明跨 HTTP 请求 MVCC、Serializable 或 point-in-time transaction snapshot。页间 soft-delete 继续是实时可见性语义。
 - 不提供 total、previous cursor、offset、筛选或排序 DSL；均属于本 Issue 范围外。

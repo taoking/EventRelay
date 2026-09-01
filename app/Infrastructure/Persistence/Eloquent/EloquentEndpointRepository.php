@@ -28,17 +28,6 @@ final class EloquentEndpointRepository implements EndpointRepository
         return $this->toDomain($record->refresh());
     }
 
-    public function all(): array
-    {
-        $endpoints = [];
-
-        foreach (EndpointRecord::query()->orderBy('id')->get() as $record) {
-            $endpoints[] = $this->toDomain($record);
-        }
-
-        return $endpoints;
-    }
-
     public function find(string $id): ?Endpoint
     {
         $record = EndpointRecord::query()

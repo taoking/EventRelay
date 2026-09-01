@@ -53,11 +53,6 @@ final class ProcessPendingDeliveryTest extends TestCase
                     return $delivery;
                 }
 
-                public function all(): array
-                {
-                    return [$this->delivery];
-                }
-
                 public function find(string $id): ?Delivery
                 {
                     return $id === $this->delivery->id()->toString() ? $this->delivery : null;
@@ -89,11 +84,6 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function save(Event $event): Event
                 {
                     return $event;
-                }
-
-                public function all(): array
-                {
-                    return [];
                 }
 
                 public function find(string $id): ?Event
@@ -157,11 +147,6 @@ final class ProcessPendingDeliveryTest extends TestCase
                     return $delivery;
                 }
 
-                public function all(): array
-                {
-                    return [];
-                }
-
                 public function find(string $id): ?Delivery
                 {
                     return null;
@@ -193,11 +178,6 @@ final class ProcessPendingDeliveryTest extends TestCase
                 public function save(Event $event): Event
                 {
                     return $event;
-                }
-
-                public function all(): array
-                {
-                    return [];
                 }
 
                 public function find(string $id): ?Event

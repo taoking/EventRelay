@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace App\Application\Delivery;
 
+use App\Application\CoreList\CoreListPage;
+use App\Application\CoreList\CoreListPageRequest;
+
 final readonly class ListDeliveries
 {
     public function __construct(
-        private DeliveryRepository $deliveries,
+        private DeliveryPageRepository $deliveries,
     ) {}
 
-    /**
-     * @return list<DeliveryData>
-     */
-    public function handle(): array
+    public function handle(CoreListPageRequest $request): CoreListPage
     {
-        return array_map(DeliveryData::fromDomain(...), $this->deliveries->all());
+        return $this->deliveries->page($request);
     }
 }

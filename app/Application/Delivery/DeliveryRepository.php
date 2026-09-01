@@ -10,10 +10,5 @@ interface DeliveryRepository
 {
     public function createOrGet(Delivery $delivery): Delivery;
 
-    /**
-     * @return list<Delivery>
-     */
-    public function all(): array;
-
     public function find(string $id): ?Delivery;
 }

@@ -85,16 +85,6 @@ final class EloquentDeliveryRepository implements DeliveryReplayCreator, Deliver
         });
     }
 
-    public function all(): array
-    {
-        $deliveries = [];
-        foreach (DeliveryRecord::query()->orderBy('id')->get() as $record) {
-            $deliveries[] = $this->toDomain($record);
-        }
-
-        return $deliveries;
-    }
-
     public function find(string $id): ?Delivery
     {
         $record = DeliveryRecord::query()->where('public_id', $id)->first();

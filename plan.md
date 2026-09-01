@@ -250,5 +250,5 @@
 - [x] 确认 `main@b4d89fd835671496b1b884aa1a77a0303af699fe`、post-merge CI `33519988281` 为 PASS，且 Issue #30 已关闭、Issue #32 开放；从该绿色基线创建 `feature/core-list-cursor-pagination`。
 - [x] 完成 Explore：三个核心列表当前均以内部单调 `id ASC` 输出；将以加密且 resource-bound 的 `after/upper` keyset cursor 保持该排序，Endpoint 继续按 SQL SoftDeletes 可见性读取。
 - [x] 建立 Application page/cursor contract 与三类 bounded keyset persistence query，移除三条核心 list path 对 `all()` 的依赖；本机 API/安全/查询数专项为 PASS，MySQL 并发待 Docker 实跑。
-- [ ] 覆盖 HTTP 契约、安全、tie、MySQL C-01～C-05、Runtime R-01～R-05 与 Docker EXPLAIN。
+- [ ] 覆盖 HTTP 契约、安全、tie、MySQL C-01～C-05、Runtime R-01～R-05 与 Docker EXPLAIN；R-05 初始计划证明 Endpoint upper-bound 需要最小的 `deleted_at,id` 索引，新增 migration 后重新验证。
 - [ ] 在精确功能 SHA 完成验证后写入证据并单次 push、创建 Draft PR；Independent Review 前保持 `INCOMPLETE`。

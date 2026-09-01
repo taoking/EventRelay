@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence\Eloquent;
 
-use App\Application\CoreList\CoreListCursor;
-use App\Application\CoreList\CoreListCursorCodec;
 use App\Application\CoreList\CoreListPage;
 use App\Application\CoreList\CoreListPageRequest;
-use App\Application\CoreList\CoreListResource;
 use App\Application\Delivery\DeliveryData;
 use App\Application\Delivery\DeliveryPageRepository;
+use App\Infrastructure\CoreList\CoreListCursor;
+use App\Infrastructure\CoreList\CoreListResource;
+use App\Infrastructure\CoreList\LaravelCoreListCursorCodec;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -20,7 +20,7 @@ use LogicException;
 
 final readonly class EloquentDeliveryPageRepository implements DeliveryPageRepository
 {
-    public function __construct(private CoreListCursorCodec $cursors) {}
+    public function __construct(private LaravelCoreListCursorCodec $cursors) {}
 
     public function page(CoreListPageRequest $request): CoreListPage
     {

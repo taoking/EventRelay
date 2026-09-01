@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence\Eloquent;
 
-use App\Application\CoreList\CoreListCursor;
-use App\Application\CoreList\CoreListCursorCodec;
 use App\Application\CoreList\CoreListPage;
 use App\Application\CoreList\CoreListPageRequest;
-use App\Application\CoreList\CoreListResource;
 use App\Application\Endpoint\EndpointData;
 use App\Application\Endpoint\EndpointPageRepository;
 use App\Domain\Endpoint\Endpoint;
 use App\Domain\Endpoint\EndpointId;
 use App\Domain\Endpoint\EndpointStatus;
+use App\Infrastructure\CoreList\CoreListCursor;
+use App\Infrastructure\CoreList\CoreListResource;
+use App\Infrastructure\CoreList\LaravelCoreListCursorCodec;
 use LogicException;
 
 final readonly class EloquentEndpointPageRepository implements EndpointPageRepository
 {
-    public function __construct(private CoreListCursorCodec $cursors) {}
+    public function __construct(private LaravelCoreListCursorCodec $cursors) {}
 
     public function page(CoreListPageRequest $request): CoreListPage
     {

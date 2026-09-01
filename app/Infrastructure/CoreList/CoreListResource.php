@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Application\CoreList;
+namespace App\Infrastructure\CoreList;
 
 enum CoreListResource: string
 {

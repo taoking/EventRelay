@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\CoreList;
 
-use App\Application\CoreList\CoreListCursor;
-use App\Application\CoreList\CoreListCursorCodec;
-use App\Application\CoreList\CoreListResource;
 use App\Application\CoreList\InvalidPaginationCursor;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Contracts\Encryption\Encrypter;
 use InvalidArgumentException;
 use JsonException;
 
-final readonly class LaravelCoreListCursorCodec implements CoreListCursorCodec
+final readonly class LaravelCoreListCursorCodec
 {
     public function __construct(private Encrypter $encrypter) {}
 

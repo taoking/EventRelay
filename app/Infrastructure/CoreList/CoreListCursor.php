@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Application\CoreList;
+namespace App\Infrastructure\CoreList;
+
+use App\Application\CoreList\InvalidPaginationCursor;
 
 final readonly class CoreListCursor
 {

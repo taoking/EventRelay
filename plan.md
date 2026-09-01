@@ -233,7 +233,8 @@
 
 - [x] 确认 `main@ad02f97f9137f5bd9a0fecd2df82012eac5dd5ff`、post-merge CI `33472861373` 为 PASS，且 Issue #28 已关闭、Issue #30 保持开放；创建 `feature/operational-health-metrics`。
 - [x] 阅读唯一执行合同、必读规范、现有 Outbox/Retry/Stale/DLQ/Rabbit/Redis 实现与测试，确认 MySQL 是 operations 的唯一 durable truth。
-- [ ] 建立受保护的 internal live/ready/metrics 端点、Application snapshot/readiness contract 与 MySQL 聚合实现。
-- [ ] 建立 Prometheus 0.0.4 renderer、due/retry/stale 等价与只读/安全回归。
-- [ ] 在准确功能提交上执行本机/Docker 质量门、EXPLAIN 与 Docker R-01..R-05，写入 Evidence。
+- [x] 建立受保护的 internal live/ready/metrics 端点、Application snapshot/readiness contract 与 MySQL 聚合实现；liveness 路由不继承 session/DB middleware。
+- [x] 建立 Prometheus 0.0.4 renderer、due/retry/stale 等价、只读/安全回归，并补 Redis timeout 的明确可恢复 publication translation。
+- [x] 在 `6ada0b20940e07cbb1abdab0ee6ddc71c004e2e1` 完成本机/Docker 质量门、MySQL EXPLAIN 与 Docker R-01..R-05；证据见 `docs/tasks/0030-operational-health-metrics/EVIDENCE.md`。
+- [ ] 创建 evidence/docs commit 后执行唯一一次 push，创建 Draft PR 并等待 CI；Independent Review 前保持 `INCOMPLETE`。
 - [ ] 单次 push、创建 Draft PR、等待 GitHub CI；Independent Review 前保持 `INCOMPLETE`。

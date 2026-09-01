@@ -11,6 +11,9 @@ use App\Application\Operations\OperationalSnapshotRepository;
 use App\Infrastructure\Operations\OperationsEndpointConfiguration;
 use App\Infrastructure\Operations\PrometheusOperationalMetricsRenderer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
+use Illuminate\Session\Middleware\StartSession;
 use LogicException;
 use PDOException;
 use Tests\TestCase;
@@ -18,6 +21,17 @@ use Tests\TestCase;
 final class OperationsEndpointTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'operations.enabled' => false,
+            'operations.bearer_token' => '',
+        ]);
+        $this->app->forgetInstance(OperationsEndpointConfiguration::class);
+    }
 
     public function test_internal_operations_endpoints_are_not_routable_when_disabled(): void
     {
@@ -69,6 +83,14 @@ final class OperationsEndpointTest extends TestCase
         $this->withToken('operations-test-token')->get('/internal/health/live')
             ->assertOk()
             ->assertExactJson(['status' => 'alive']);
+    }
+
+    public function test_internal_operations_routes_do_not_inherit_web_session_middleware(): void
+    {
+        /** @var Route $route */
+        $route = $this->app['router']->getRoutes()->match(Request::create('/internal/health/live'));
+
+        self::assertNotContains(StartSession::class, $route->gatherMiddleware());
     }
 
     public function test_readiness_reports_only_mysql_and_hides_database_failure_details(): void

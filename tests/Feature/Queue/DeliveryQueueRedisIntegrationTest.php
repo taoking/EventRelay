@@ -24,8 +24,10 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Testing\TestResponse;
 use Predis\Connection\ConnectionException;
+use Predis\Connection\NodeConnectionInterface;
 use Predis\Connection\Resource\Exception\StreamInitException;
 use Predis\Response\ServerException;
+use Predis\TimeoutException;
 use RedisException;
 use Tests\Support\FrozenClock;
 use Tests\TestCase;
@@ -197,6 +199,35 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
     }
 
+    public function test_real_publisher_translates_predis_timeouts_as_recoverable_publication_failures(): void
+    {
+        $this->requireMySqlAndRedis();
+        $deliveryId = DeliveryId::fromString('adb4d301-f44a-4dab-a545-6f9046cbeb6f');
+        $timeout = new TimeoutException(\Mockery::mock(NodeConnectionInterface::class));
+        Log::spy();
+        $dispatcher = $this->replaceDispatcherWithPublicationFailure($timeout);
+
+        try {
+            app(LaravelRedisDeliveryTransport::class)->publish($deliveryId);
+            self::fail('A Redis publication timeout must be translated.');
+        } catch (DeliveryTransportUnavailable $exception) {
+            self::assertSame($deliveryId->toString(), $exception->deliveryId->toString());
+            self::assertSame($timeout, $exception->getPrevious());
+        } finally {
+            $this->app->instance(Dispatcher::class, $dispatcher);
+        }
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Delivery transport publication failed.', \Mockery::on(
+                static fn (array $context): bool => $context['delivery_id'] === $deliveryId->toString()
+                    && $context['queue'] === 'deliveries'
+                    && $context['transport'] === 'redis'
+                    && $context['exception'] === TimeoutException::class
+                    && $context['message'] === 'Operation has timed out',
+            ));
+    }
+
     public function test_redis_server_publication_failure_leaves_the_committed_outbox_message_recoverable(): void
     {
         $this->requireMySqlAndRedis();
@@ -348,11 +379,16 @@ final class DeliveryQueueRedisIntegrationTest extends TestCase
 
     private function replaceDispatcherWithServerFailure(): Dispatcher
     {
+        return $this->replaceDispatcherWithPublicationFailure(new ServerException('READONLY simulated publication failure'));
+    }
+
+    private function replaceDispatcherWithPublicationFailure(\Throwable $exception): Dispatcher
+    {
         $originalDispatcher = app(Dispatcher::class);
         $dispatcher = \Mockery::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')
             ->once()
-            ->andThrow(new ServerException('READONLY simulated publication failure'));
+            ->andThrow($exception);
 
         $this->app->instance(Dispatcher::class, $dispatcher);
 

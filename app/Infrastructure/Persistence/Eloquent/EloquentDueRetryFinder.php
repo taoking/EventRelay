@@ -6,7 +6,6 @@ namespace App\Infrastructure\Persistence\Eloquent;
 
 use App\Application\Delivery\DueRetryFinder;
 use App\Domain\Delivery\DeliveryId;
-use App\Domain\Delivery\DeliveryStatus;
 use DateTimeImmutable;
 use LogicException;
 
@@ -16,10 +15,7 @@ final class EloquentDueRetryFinder implements DueRetryFinder
     {
         $ids = [];
 
-        foreach (DeliveryRecord::query()
-            ->where('status', DeliveryStatus::RetryScheduled->value)
-            ->whereNotNull('next_attempt_at')
-            ->where('next_attempt_at', '<=', $now)
+        foreach (EloquentDueRetryQuery::apply(DeliveryRecord::query(), $now)
             ->orderBy('next_attempt_at')
             ->orderBy('id')
             ->limit($limit)

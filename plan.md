@@ -228,3 +228,12 @@
 - [x] 读取 `REMEDIATION-01.md`，在 `18518756bf33ec45dc9ee65f68d2a3381bfb1410` 完成 M-01（连续 Rabbit consumer idle timeout/终止）和 L-01（Outbox Worker stop）最小修复与真实子进程/barrier 回归。
 - [x] 在精确代码 HEAD 完成本机/Docker quality、Docker Rabbit/MySQL/Redis 专项，以及 R-06 continuous lifecycle 和 R-07 graceful stop；细节见 `EVIDENCE.md`。
 - [ ] 创建仅证据/计划/记录提交后进行一次 push，更新现有 Draft PR #29 并等待 CI；Independent Review #2 前保持 `INCOMPLETE`。
+
+## Issue #30：Operational Health and Durable-State Metrics
+
+- [x] 确认 `main@ad02f97f9137f5bd9a0fecd2df82012eac5dd5ff`、post-merge CI `33472861373` 为 PASS，且 Issue #28 已关闭、Issue #30 保持开放；创建 `feature/operational-health-metrics`。
+- [x] 阅读唯一执行合同、必读规范、现有 Outbox/Retry/Stale/DLQ/Rabbit/Redis 实现与测试，确认 MySQL 是 operations 的唯一 durable truth。
+- [ ] 建立受保护的 internal live/ready/metrics 端点、Application snapshot/readiness contract 与 MySQL 聚合实现。
+- [ ] 建立 Prometheus 0.0.4 renderer、due/retry/stale 等价与只读/安全回归。
+- [ ] 在准确功能提交上执行本机/Docker 质量门、EXPLAIN 与 Docker R-01..R-05，写入 Evidence。
+- [ ] 单次 push、创建 Draft PR、等待 GitHub CI；Independent Review 前保持 `INCOMPLETE`。

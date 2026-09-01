@@ -5,6 +5,7 @@ use App\Infrastructure\Providers\DeliveryTransportServiceProvider;
 use App\Infrastructure\Providers\EndpointServiceProvider;
 use App\Infrastructure\Providers\EndpointSigningSecretServiceProvider;
 use App\Infrastructure\Providers\EventServiceProvider;
+use App\Infrastructure\Providers\OperationsServiceProvider;
 use App\Infrastructure\Providers\SubscriptionServiceProvider;
 use App\Infrastructure\Providers\TransactionServiceProvider;
 use App\Infrastructure\Providers\WebhookServiceProvider;
@@ -17,6 +18,7 @@ return [
     EventServiceProvider::class,
     EndpointServiceProvider::class,
     EndpointSigningSecretServiceProvider::class,
+    OperationsServiceProvider::class,
     SubscriptionServiceProvider::class,
     TransactionServiceProvider::class,
     WebhookServiceProvider::class,

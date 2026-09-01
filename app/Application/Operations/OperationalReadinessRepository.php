@@ -7,7 +7,7 @@ namespace App\Application\Operations;
 interface OperationalReadinessRepository
 {
     /**
-     * 只检查 MySQL 是否可以执行最小的 durable read/write 基础探测。
+     * 只检查 MySQL 是否可以完成最小 durable write/commit 探测。
      */
     public function isMysqlAvailable(): bool;
 }

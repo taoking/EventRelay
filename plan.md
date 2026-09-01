@@ -238,3 +238,9 @@
 - [x] 在 `6ada0b20940e07cbb1abdab0ee6ddc71c004e2e1` 完成本机/Docker 质量门、MySQL EXPLAIN 与 Docker R-01..R-05；证据见 `docs/tasks/0030-operational-health-metrics/EVIDENCE.md`。
 - [ ] 创建 evidence/docs commit 后执行唯一一次 push，创建 Draft PR 并等待 CI；Independent Review 前保持 `INCOMPLETE`。
 - [ ] 单次 push、创建 Draft PR、等待 GitHub CI；Independent Review 前保持 `INCOMPLETE`。
+
+### PR #31 Independent Review #1 — MySQL writable readiness 整改
+
+- [x] 读取 `REMEDIATION-01.md`，确认 M-01 仅要求 MySQL durable write/commit probe，Redis/RabbitMQ 不进入 readiness，liveness 不变。
+- [ ] 实现专用零净状态 probe、真实 MySQL 只读/恢复与并发回归；首个整改提交需同时包含合同与开发记录索引。
+- [ ] 在精确整改代码 HEAD 运行 targeted、Docker R-06/R-07/R-08、本机/Docker quality；写入 EVIDENCE 后单次 push 并等待 PR #31 CI。Independent Review #2 前保持 `INCOMPLETE`。

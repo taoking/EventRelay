@@ -16,14 +16,33 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use PDOException;
 
 final class EloquentOperationalReadModel implements OperationalReadinessRepository, OperationalSnapshotRepository
 {
     public function isMysqlAvailable(): bool
     {
+        $probeId = bin2hex(random_bytes(16));
+
         try {
-            DB::select('SELECT 1');
+            DB::transaction(function () use ($probeId): void {
+                $inserted = DB::table('operational_readiness_probes')->insert([
+                    'probe_id' => $probeId,
+                ]);
+
+                if (! $inserted) {
+                    throw new LogicException('MySQL readiness probe insert was not acknowledged.');
+                }
+
+                $deleted = DB::table('operational_readiness_probes')
+                    ->where('probe_id', $probeId)
+                    ->delete();
+
+                if ($deleted !== 1) {
+                    throw new LogicException('MySQL readiness probe cleanup did not remove its row.');
+                }
+            });
 
             return true;
         } catch (PDOException|QueryException) {

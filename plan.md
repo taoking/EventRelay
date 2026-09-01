@@ -242,5 +242,5 @@
 ### PR #31 Independent Review #1 — MySQL writable readiness 整改
 
 - [x] 读取 `REMEDIATION-01.md`，确认 M-01 仅要求 MySQL durable write/commit probe，Redis/RabbitMQ 不进入 readiness，liveness 不变。
-- [ ] 实现专用零净状态 probe、真实 MySQL 只读/恢复与并发回归；首个整改提交需同时包含合同与开发记录索引。
-- [ ] 在精确整改代码 HEAD 运行 targeted、Docker R-06/R-07/R-08、本机/Docker quality；写入 EVIDENCE 后单次 push 并等待 PR #31 CI。Independent Review #2 前保持 `INCOMPLETE`。
+- [x] 在 `99452ff02d7f587973e0cc3d300b681f87c2072f` 实现专用零净状态 probe、真实 MySQL 只读/恢复与并发回归；首个整改提交已同时包含合同与开发记录索引。
+- [x] 在精确整改代码 HEAD 完成 targeted、Docker R-06/R-07/R-08、物理 MySQL down、本机/Docker quality 与 clean-schema migration；详见 `EVIDENCE.md`。待单次 push 与 PR #31 CI，Independent Review #2 前保持 `INCOMPLETE`。

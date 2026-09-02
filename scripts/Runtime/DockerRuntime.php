@@ -62,6 +62,25 @@ final class DockerRuntime
         }, Deadline::afterSeconds($seconds), $service.' health', $this->cancellation);
     }
 
+    public function waitForMySqlConnection(Eventually $eventually, float $seconds = 90.0): void
+    {
+        $this->assertOwnedService('mysql');
+        $eventually->until(function (): bool {
+            try {
+                return trim($this->serviceCommand(
+                    'mysql',
+                    ['mysql', '--protocol=TCP', '-h', '127.0.0.1', '-u', 'runtime_user', '--password=runtime-db-credential', '-D', 'eventrelay_runtime', '-Nse', 'SELECT 1'],
+                    'probe runtime MySQL TCP connection',
+                    10.0,
+                )) === '1';
+            } catch (RuntimeCancelled $exception) {
+                throw $exception;
+            } catch (RuntimeException) {
+                return false;
+            }
+        }, Deadline::afterSeconds($seconds), 'runtime MySQL TCP connection', $this->cancellation);
+    }
+
     public function waitForServiceStopped(string $service, Eventually $eventually, float $seconds = 30.0): void
     {
         $this->assertOwnedService($service);

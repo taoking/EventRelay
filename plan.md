@@ -260,4 +260,5 @@
 - [x] 建立 run-scoped 独立 Compose、ownership guard、进程生命周期、deadline/eventual、cleanup 与脱敏诊断能力。
 - [x] 实现 R-01 至 R-05 sentinel suite、failure-path self-tests、独立 Composer runtime 命令与 CI sibling job，不改变生产业务行为。
 - [x] 在首个功能提交 `f9a08906fbd75052632d4f980900afffae996fad` 的精确 SHA 上完成双 suite Runtime、质量门与自审，并写入 repository-native evidence。
-- [ ] 创建 evidence/docs commit 后执行唯一一次 push、创建 Draft PR、等待 GitHub CI；Independent Review 前保持 `INCOMPLETE`。
+- [x] 初始 push 后创建 Draft PR #35；GitHub quality PASS 但 runtime-harness 暴露 MySQL entrypoint startup race，已用最小 Harness TCP-readiness gate 整改并在 `3786ede619568dbc04cc919a5e1631d99c45ccee` 通过 targeted/R-01/quality 验证。
+- [ ] 推送整改 commit、等待新的 GitHub quality + runtime-harness CI；Independent Review 前保持 `INCOMPLETE`。

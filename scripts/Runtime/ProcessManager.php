@@ -29,7 +29,13 @@ final class ProcessManager
         $process = $this->start($argv, $workingDirectory, $environment, $description);
         $exitCode = $process->wait(Deadline::afterSeconds($timeoutSeconds), $cancellation);
         if ($exitCode !== 0) {
-            throw new RuntimeException(sprintf('%s exited with %d. stderr tail: %s', $description, $exitCode, $process->stderrTail()));
+            throw new RuntimeException(sprintf(
+                "%s exited with %d. stdout tail: %s\nstderr tail: %s",
+                $description,
+                $exitCode,
+                $process->stdoutTail(),
+                $process->stderrTail(),
+            ));
         }
 
         return $process;

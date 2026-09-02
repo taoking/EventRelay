@@ -34,6 +34,7 @@ final class RuntimeContext
         foreach (['mysql', 'redis', 'rabbitmq'] as $service) {
             $this->docker->waitForServiceHealth($service, $this->eventually);
         }
+        $this->docker->waitForMySqlConnection($this->eventually);
 
         $baseUrl = $this->docker->dynamicHttpBaseUrl();
         $this->http = new HttpProbe($baseUrl);

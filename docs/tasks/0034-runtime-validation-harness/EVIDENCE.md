@@ -7,8 +7,17 @@
 - Issue #32：`CLOSED`
 - Issue #34：`OPEN`
 - branch：`feature/runtime-validation-harness`
-- validated_implementation_head：`f9a08906fbd75052632d4f980900afffae996fad`
-- 首个功能提交：`f9a08906fbd75052632d4f980900afffae996fad`，尚未 push。
+- 首个功能提交：`f9a08906fbd75052632d4f980900afffae996fad`。
+- 初始 local exact implementation head：`f9a08906fbd75052632d4f980900afffae996fad`；其 targeted self-tests、两轮 Runtime suite 与 `composer quality` 结果见下文。
+
+## GitHub CI 失败与最小 Harness 整改
+
+- 初始 push 的 CI [33638217944](https://github.com/taoking/EventRelay/actions/runs/33638217944) 中，`quality`=`PASS`，`runtime-harness`=`FAIL`；这是已执行的 Harness CI，不是 production business regression。
+- 精确根因：Docker MySQL 在 entrypoint 临时初始化实例期间短暂给出 health 状态，随后正式 MySQL 实例重启。Harness 仅等待 service health 后立刻执行 `migrate:fresh`，实际 TCP 连接仍可能得到 `SQLSTATE[HY000] [2002] Connection refused`。
+- 最小整改 commit / current exact implementation head：`3786ede619568dbc04cc919a5e1631d99c45ccee`。它在既有 bounded health gate 后增加 owned MySQL 容器内、`runtime_user` 对 `127.0.0.1:3306` 的真实 TCP `SELECT 1` eventual gate；cancellation 继续传播，只有明确 transient connection failure 才会在 deadline 内重试。
+- 同一整改还将受管命令的 bounded stdout tail 加入非零 exit diagnostics，防止下一次 migration/Artisan failure 丢失关键错误输出。
+- 整改 SHA targeted self-tests：`PASS`，8 tests / 16 assertions；R-01：`PASS`（run id `local-ci-remediation-r01`，动态 port `55064`、ownership verified、cleanup zero-residue）；`composer quality`：`PASS`，272 tests / 225 passed / 1455 assertions / 47 environment-specific skipped。
+- 整改 SHA 的 GitHub CI：`NOT RUN`（将在该 commit push 后重新运行完整 R-01～R-05）。本节不把初始 SHA 的 Runtime PASS 误写为整改 SHA 的完整 CI PASS。
 
 ## Harness 设计事实
 
@@ -143,8 +152,9 @@ composer quality
 
 ## Risks / NOT RUN
 
-- GitHub `quality` / `runtime-harness` CI：`NOT RUN`，等待本轮唯一 push 后执行。
-- Draft PR：`NOT RUN`，将在唯一 push 后创建。
+- 初始 GitHub `quality`：`PASS`；初始 GitHub `runtime-harness`：`FAIL`，根因与最小整改见上节。
+- 整改后的 GitHub `quality` / `runtime-harness` CI：`NOT RUN`，等待整改 commit push 后执行。
+- Draft PR：已创建为 [#35](https://github.com/taoking/EventRelay/pull/35)，保持 `Draft`。
 - Independent Review：`NOT RUN`。
 - 系统仍为 at-least-once；本 Issue 仅建立 Runtime Harness，不改变 Delivery/Outbox/RabbitMQ 业务语义。
 

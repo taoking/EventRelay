@@ -252,3 +252,13 @@
 - [x] 建立 Application page contract 与三类 bounded keyset persistence query，移除三条核心 list path 对 `all()` 的依赖；内部键仅位于 Infrastructure 的加密 cursor/persistence adapter。
 - [x] 在 `a810f82eee6b56e48faeb0514282a701a18219f5` 完成 HTTP 契约、安全、tie、Docker MySQL C-01～C-05、Runtime R-01～R-05 与 Docker EXPLAIN；Endpoint upper-bound 以最小 `deleted_at,id` 索引优化。
 - [ ] 已写入证据；待单次 push、创建 Draft PR 与 GitHub CI。Independent Review 前保持 `INCOMPLETE`。
+
+## Issue #34：Runtime Validation Harness
+
+- [x] 确认 `main@fce39ce07f42b159dda61119c0387752b73477fd`、post-merge CI `33539260903` 为 PASS，且 Issue #32 已关闭、Issue #34 保持开放；创建 `feature/runtime-validation-harness`。
+- [x] 完成 Explore：默认 `eventrelay` Compose 具有固定端口，现有 Rabbit/Outbox/MySQL 测试分别使用手写 pcntl/socket 与有界轮询，尚无统一 runtime lifecycle 工具。
+- [x] 建立 run-scoped 独立 Compose、ownership guard、进程生命周期、deadline/eventual、cleanup 与脱敏诊断能力。
+- [x] 实现 R-01 至 R-05 sentinel suite、failure-path self-tests、独立 Composer runtime 命令与 CI sibling job，不改变生产业务行为。
+- [x] 在首个功能提交 `f9a08906fbd75052632d4f980900afffae996fad` 的精确 SHA 上完成双 suite Runtime、质量门与自审，并写入 repository-native evidence。
+- [x] 初始 push 后创建 Draft PR #35；GitHub quality PASS 但 runtime-harness 暴露 MySQL entrypoint startup race，已用最小 Harness TCP-readiness gate 整改并在 `3786ede619568dbc04cc919a5e1631d99c45ccee` 通过 targeted/R-01/quality 验证。
+- [ ] 推送整改 commit、等待新的 GitHub quality + runtime-harness CI；Independent Review 前保持 `INCOMPLETE`。

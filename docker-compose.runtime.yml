@@ -1,0 +1,101 @@
+x-runtime-labels: &runtime-labels
+  com.eventrelay.runtime: 'true'
+  com.eventrelay.runtime.run-id: ${EVENTRELAY_RUNTIME_RUN_ID:?EVENTRELAY_RUNTIME_RUN_ID is required}
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    command: >
+      sh -lc 'composer install --no-interaction --prefer-dist --no-progress;
+      php artisan serve --host=0.0.0.0 --port=8000 --no-reload'
+    environment:
+      APP_NAME: EventRelayRuntime
+      APP_ENV: runtime
+      APP_KEY: base64:QZjjrJ8upZvg1BzLJ6YtXWnr7wFf3p9oYqGd4mV0b2k=
+      APP_DEBUG: 'false'
+      APP_URL: http://localhost
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: eventrelay_runtime
+      DB_USERNAME: runtime_user
+      DB_PASSWORD: runtime-db-credential
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DELIVERY_TRANSPORT: ${EVENTRELAY_RUNTIME_DELIVERY_TRANSPORT:-redis}
+      OPERATIONS_ENDPOINTS_ENABLED: 'true'
+      OPERATIONS_BEARER_TOKEN: ${EVENTRELAY_RUNTIME_OPERATIONS_BEARER_TOKEN:?EVENTRELAY_RUNTIME_OPERATIONS_BEARER_TOKEN is required}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: runtime_user
+      RABBITMQ_PASSWORD: runtime-rabbit-credential
+      RABBITMQ_VHOST: /
+      RABBITMQ_EXCHANGE: eventrelay.runtime.delivery
+      RABBITMQ_QUEUE: eventrelay.runtime.deliveries
+      RABBITMQ_ROUTING_KEY: delivery.process
+      RABBITMQ_PREFETCH: 1
+      RABBITMQ_TIMEOUT: 1
+    ports:
+      - target: 8000
+        published: '0'
+        protocol: tcp
+    volumes:
+      - .:/var/www/html
+    labels: *runtime-labels
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: eventrelay_runtime
+      MYSQL_USER: runtime_user
+      MYSQL_PASSWORD: runtime-db-credential
+      MYSQL_ROOT_PASSWORD: runtime-root-credential
+    volumes:
+      - runtime-mysql:/var/lib/mysql
+    labels: *runtime-labels
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -uroot -pruntime-root-credential']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    labels: *runtime-labels
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: runtime_user
+      RABBITMQ_DEFAULT_PASS: runtime-rabbit-credential
+    labels: *runtime-labels
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+networks:
+  default:
+    labels: *runtime-labels
+
+volumes:
+  runtime-mysql:
+    labels: *runtime-labels

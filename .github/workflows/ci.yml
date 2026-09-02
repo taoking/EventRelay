@@ -99,3 +99,31 @@ jobs:
           RABBITMQ_PORT: 5672
           RABBITMQ_USER: eventrelay
           RABBITMQ_PASSWORD: eventrelay
+
+  runtime-harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run isolated Runtime Harness sentinel suite
+        run: composer runtime -- suite
+        env:
+          EVENTRELAY_RUNTIME_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Cleanup owned Runtime Harness resources
+        if: always()
+        run: composer runtime -- cleanup-current
+        env:
+          EVENTRELAY_RUNTIME_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}

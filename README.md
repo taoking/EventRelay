@@ -45,6 +45,24 @@ composer quality
 docker compose exec app composer quality
 ```
 
+## 隔离 Runtime Validation Harness
+
+`composer quality` 仅执行机械质量 Gate，不会启动 Runtime Harness。需要真实 Docker 生命周期、MySQL outage、RabbitMQ consumer 与 Outbox worker 验证时，使用独立入口：
+
+```sh
+composer runtime -- list
+composer runtime -- run isolation-smoke
+composer runtime -- suite
+```
+
+Harness 为每个场景生成 `eventrelay-runtime-*` 的 run-scoped Compose project，并通过 ownership label 验证后才会 stop、start 或 down 资源。它使用动态 HTTP host port，默认开发 `eventrelay` Compose project 可以继续运行；不要手动把 `EVENTRELAY_RUNTIME_RUN_ID` 设为 `eventrelay`。每次 scenario 无论 PASS、FAIL 或收到终止信号都会执行 project-scoped cleanup。若需要对某个中断的 CI run 重试 cleanup，使用同一个已验证 run ID：
+
+```sh
+EVENTRELAY_RUNTIME_RUN_ID=ci-example composer runtime -- cleanup-current
+```
+
+Runtime 输出与 evidence 会脱敏 operations token、数据库/RabbitMQ credential 及 webhook secret；不要在命令参数、日志或证据中加入真实生产密钥。
+
 最小运行时验证：
 
 ```sh

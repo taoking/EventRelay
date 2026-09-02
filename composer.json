@@ -21,7 +21,8 @@
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^12.5.12"
+        "phpunit/phpunit": "^12.5.12",
+        "symfony/process": "^8.1"
     },
     "autoload": {
         "psr-4": {
@@ -32,7 +33,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "Runtime\\": "scripts/Runtime/"
         }
     },
     "scripts": {
@@ -56,6 +58,7 @@
             "@architecture:negative",
             "@php artisan test"
         ],
+        "runtime": "@php scripts/runtime.php",
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"

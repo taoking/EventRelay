@@ -257,6 +257,7 @@
 
 - [x] 确认 `main@fce39ce07f42b159dda61119c0387752b73477fd`、post-merge CI `33539260903` 为 PASS，且 Issue #32 已关闭、Issue #34 保持开放；创建 `feature/runtime-validation-harness`。
 - [x] 完成 Explore：默认 `eventrelay` Compose 具有固定端口，现有 Rabbit/Outbox/MySQL 测试分别使用手写 pcntl/socket 与有界轮询，尚无统一 runtime lifecycle 工具。
-- [ ] 建立 run-scoped 独立 Compose、ownership guard、进程生命周期、deadline/eventual、cleanup 与脱敏诊断能力。
-- [ ] 实现 R-01 至 R-05 sentinel suite、failure-path self-tests、独立 Composer runtime 命令与 CI sibling job，不改变生产业务行为。
-- [ ] 在首个功能提交的精确 SHA 上完成双 suite Runtime、质量门与自审，随后补齐证据、单次 push、Draft PR 与 CI；Independent Review 前保持 `INCOMPLETE`。
+- [x] 建立 run-scoped 独立 Compose、ownership guard、进程生命周期、deadline/eventual、cleanup 与脱敏诊断能力。
+- [x] 实现 R-01 至 R-05 sentinel suite、failure-path self-tests、独立 Composer runtime 命令与 CI sibling job，不改变生产业务行为。
+- [x] 在首个功能提交 `f9a08906fbd75052632d4f980900afffae996fad` 的精确 SHA 上完成双 suite Runtime、质量门与自审，并写入 repository-native evidence。
+- [ ] 创建 evidence/docs commit 后执行唯一一次 push、创建 Draft PR、等待 GitHub CI；Independent Review 前保持 `INCOMPLETE`。
